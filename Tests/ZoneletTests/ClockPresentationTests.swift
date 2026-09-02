@@ -75,6 +75,7 @@ struct ClockPresentationTests {
         let defaults = try #require(UserDefaults(suiteName: "ZoneletTests.Format.\(UUID())"))
         let languageStore = LanguageStore(defaults: defaults)
         let store = ClockStore(defaults: defaults, languageStore: languageStore)
+        store.add(timeZoneIdentifier: "Asia/Shanghai")
         let first = try #require(store.clocks.first)
         let second = try #require(store.clocks.dropFirst().first)
 
@@ -137,18 +138,14 @@ struct ClockPresentationTests {
     }
 
     @MainActor
-    @Test("Adds Lima once when upgrading existing preferences")
-    func limaMigration() throws {
-        let suite = "ZoneletTests.Lima.\(UUID())"
+    @Test("Starts with UTC only")
+    func utcIsTheOnlyDefaultClock() throws {
+        let suite = "ZoneletTests.DefaultClocks.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
-        let saved = [ZoneClock(timeZoneIdentifier: "UTC", label: "UTC")]
-        defaults.set(try JSONEncoder().encode(saved), forKey: "zonelet.clocks")
         let languageStore = LanguageStore(defaults: defaults)
+        let store = ClockStore(defaults: defaults, languageStore: languageStore)
 
-        let firstStore = ClockStore(defaults: defaults, languageStore: languageStore)
-        #expect(firstStore.clocks.filter { $0.timeZoneIdentifier == "America/Lima" }.count == 1)
-
-        let secondStore = ClockStore(defaults: defaults, languageStore: languageStore)
-        #expect(secondStore.clocks.filter { $0.timeZoneIdentifier == "America/Lima" }.count == 1)
+        #expect(store.clocks.count == 1)
+        #expect(store.clocks.first?.timeZoneIdentifier == "UTC")
     }
 }
