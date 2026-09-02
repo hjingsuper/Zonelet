@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct AddZoneView: View {
     let store: ClockStore
     let languageStore: LanguageStore
