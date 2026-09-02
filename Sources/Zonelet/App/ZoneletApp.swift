@@ -39,6 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         logger.notice("Application services are ready")
         updateManager.start()
+
+#if DEBUG
+        if ProcessInfo.processInfo.environment["ZONELET_UI_PREVIEW"] == "1" {
+            showWindow()
+        }
+#endif
     }
 
     private func migratePreferencesFromLegacyBundleIdentifierIfNeeded() {

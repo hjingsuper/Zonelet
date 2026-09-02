@@ -59,10 +59,11 @@ struct ClockRowView: View {
                     }
                 } label: {
                     Text(clock.displayFormatPreset.title(language: languageStore.language))
-                        .frame(minWidth: 115, alignment: .trailing)
+                        .frame(width: 140, alignment: .trailing)
                 }
                 .menuStyle(.borderlessButton)
                 .controlSize(.small)
+                .fixedSize()
                 .help(languageStore[.displayFormat])
             }
 

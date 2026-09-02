@@ -146,7 +146,7 @@ struct ClockPresentationTests {
         let languageStore = LanguageStore(defaults: defaults)
 
         #expect(languageStore.language == .simplifiedChinese)
-        #expect(languageStore[.addTimeZone] == "添加时区")
+        #expect(languageStore[.addTimeZone] == "添加地区时间")
     }
 
     @MainActor

@@ -75,9 +75,10 @@ struct ClockListView: View {
                         store.uniformDisplayFormat?.title(language: languageStore.language)
                             ?? languageStore[.mixedFormats]
                     )
-                    .frame(minWidth: 110, alignment: .trailing)
+                    .frame(width: 140, alignment: .trailing)
                 }
                 .menuStyle(.borderlessButton)
+                .fixedSize()
             }
 
             Text(languageStore[.formatDescription])
@@ -201,8 +202,11 @@ struct ClockListView: View {
                 }
             } label: {
                 Image(systemName: "character.bubble")
+                    .frame(width: 18)
             }
             .menuStyle(.borderlessButton)
+            .controlSize(.small)
+            .fixedSize()
             .help(languageStore[.language])
 
             Button {
