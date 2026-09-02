@@ -6,6 +6,8 @@
 
 官网：<https://hjingsuper.github.io/Zonelet/> · [下载最新版本](https://github.com/hjingsuper/Zonelet/releases/latest)
 
+正式版本提供适用于 Apple Silicon（M 系列芯片）的 DMG 安装镜像。
+
 ## 功能
 
 - 添加任意系统时区；首次启动默认只有 UTC
@@ -46,4 +48,4 @@ Project home: <https://github.com/hjingsuper/Zonelet>
 
 The website is deployed from `docs/` with GitHub Pages. Every push builds a
 downloadable Actions artifact; pushing a version tag such as `v1.6` creates a
-GitHub Release with the packaged macOS app and SHA-256 checksum.
+GitHub Release with an Apple Silicon DMG and SHA-256 checksum.
