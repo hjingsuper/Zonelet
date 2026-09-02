@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct ClockRowView: View {
     let clock: ZoneClock
     let index: Int
