@@ -1,0 +1,78 @@
+import Foundation
+
+enum ClockPresentation {
+    static func timeString(
+        at date: Date = .now,
+        in timeZone: TimeZone,
+        locale: Locale = .current,
+        format: String? = nil
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        if let format {
+            formatter.dateFormat = format
+        } else {
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+        }
+        return formatter.string(from: date)
+    }
+
+    static func dayOffset(
+        at date: Date = .now,
+        from localTimeZone: TimeZone = .current,
+        to targetTimeZone: TimeZone
+    ) -> Int {
+        let localComponents = dayComponents(at: date, in: localTimeZone)
+        let targetComponents = dayComponents(at: date, in: targetTimeZone)
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = .gmt
+
+        guard
+            let localDay = utcCalendar.date(from: localComponents),
+            let targetDay = utcCalendar.date(from: targetComponents)
+        else {
+            return 0
+        }
+
+        return utcCalendar.dateComponents([.day], from: localDay, to: targetDay).day ?? 0
+    }
+
+    static func menuTitle(
+        for clock: ZoneClock,
+        at date: Date = .now,
+        maxLength: Int = 30
+    ) -> String {
+        let time = timeString(at: date, in: clock.timeZone, format: clock.effectiveDisplayFormat)
+        let offset = dayOffset(at: date, to: clock.timeZone)
+        let dayMarker: String
+
+        switch offset {
+        case let value where value > 0:
+            dayMarker = " +\(value)"
+        case let value where value < 0:
+            dayMarker = " \(value)"
+        default:
+            dayMarker = ""
+        }
+
+        let title = "\(clock.label) \(time)\(dayMarker)"
+        return title.count <= maxLength ? title : String(title.prefix(maxLength - 1)) + "…"
+    }
+
+    static func statusTitle(
+        for clock: ZoneClock,
+        at date: Date = .now,
+        isLast: Bool
+    ) -> String {
+        let title = menuTitle(for: clock, at: date, maxLength: isLast ? 30 : 28)
+        return isLast ? title : "\(title)  │"
+    }
+
+    private static func dayComponents(at date: Date, in timeZone: TimeZone) -> DateComponents {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.dateComponents([.year, .month, .day], from: date)
+    }
+}
