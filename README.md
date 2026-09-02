@@ -4,6 +4,8 @@
 
 [English](#english)
 
+官网：<https://hjingsuper.github.io/Zonelet/> · [下载最新版本](https://github.com/hjingsuper/Zonelet/releases/latest)
+
 ## 功能
 
 - 添加任意系统时区；首次启动默认包含 UTC 和秘鲁利马
@@ -41,3 +43,7 @@ include UTC and Lima. There are no accounts, analytics, or network access.
 Zonelet is open source under the [MIT License](LICENSE).
 
 Project home: <https://github.com/hjingsuper/Zonelet>
+
+The website is deployed from `docs/` with GitHub Pages. Every push builds a
+downloadable Actions artifact; pushing a version tag such as `v1.6` creates a
+GitHub Release with the packaged macOS app and SHA-256 checksum.
