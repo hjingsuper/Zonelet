@@ -95,10 +95,18 @@ final class StatusBarController: NSObject {
 
     private func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.updateTimes() }
-        }
+        timer = Timer.scheduledTimer(
+            timeInterval: 20,
+            target: self,
+            selector: #selector(timerDidFire),
+            userInfo: nil,
+            repeats: true
+        )
         timer?.tolerance = 2
+    }
+
+    @objc private func timerDidFire() {
+        updateTimes()
     }
 
     @objc private func openZonelet() {
