@@ -55,6 +55,20 @@ struct ClockPresentationTests {
         #expect(value == "2026-09-02 08:05")
     }
 
+    @Test("Formats full date and time followed by weekday")
+    func fullDateTimeWithWeekdayFormat() throws {
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-02T08:05:00Z"))
+        let value = ClockPresentation.timeString(
+            at: date,
+            in: .gmt,
+            locale: Locale(identifier: "zh_CN"),
+            format: DisplayFormatPreset.fullDateTimeWithWeekday.pattern
+        )
+
+        #expect(DisplayFormatPreset.fullDateTimeWithWeekday.pattern == "yyyy-MM-dd HH:mm EEE")
+        #expect(value == "2026-09-02 08:05 周三")
+    }
+
     @MainActor
     @Test("Stores display formats independently")
     func displayFormatPersistence() throws {
