@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Zonelet 是一款小而美、完全离线的 macOS 菜单栏世界时钟。">
+  <title>Zonelet — 安静地放在菜单栏的世界时间</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Zonelet 首页">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="12"></circle>
+        <path d="M4 16h24M16 4c4 3.2 6 7.2 6 12s-2 8.8-6 12c-4-3.2-6-7.2-6-12s2-8.8 6-12Z"></path>
+      </svg>
+      <span>Zonelet</span>
+    </a>
+    <nav aria-label="主导航">
+      <a href="#features">功能</a>
+      <a href="#open-source">开源</a>
+      <a href="https://github.com/hjingsuper/Zonelet">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">把世界时间，<br>安静地放在菜单栏。</h1>
+        <p>为每个城市选择自己的日期与时间格式。<br>无需账户，不联网，没有多余功能。</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/hjingsuper/Zonelet/releases/latest/download/Zonelet-macOS.zip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 19h14"></path></svg>
+            下载最新版本
+          </a>
+          <a class="button button-secondary" href="https://github.com/hjingsuper/Zonelet">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7.4A5.8 5.8 0 0 0 19.3 3 5.4 5.4 0 0 0 19.1.3S17.9-.1 15 1.8a14.7 14.7 0 0 0-6 0C6.1-.1 4.9.3 4.9.3A5.4 5.4 0 0 0 4.7 3a5.8 5.8 0 0 0-1.5 4.1c0 5.8 3.5 7 6.8 7.4A4.8 4.8 0 0 0 9 18v4"></path></svg>
+            查看 GitHub
+          </a>
+        </div>
+        <p class="requirements">需要 macOS 14 或更高版本</p>
+      </div>
+
+      <div class="product-stage" aria-label="Zonelet 应用界面示意">
+        <div class="menu-bar-demo">
+          <span class="apple-mark">●</span>
+          <span>UTC&nbsp; 06:35&nbsp;&nbsp;│&nbsp;&nbsp;利马&nbsp; 01:35</span>
+          <span class="system-marks">⌁&nbsp;&nbsp;⌕</span>
+        </div>
+        <div class="app-window">
+          <div class="window-titlebar">
+            <div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+            <strong>Zonelet</strong>
+          </div>
+          <div class="window-header">
+            <div>
+              <b>Zonelet</b>
+              <small>世界时间，一眼即知</small>
+            </div>
+            <button type="button" tabindex="-1">＋ 添加时区</button>
+          </div>
+          <div class="clock-list">
+            <div class="clock-row">
+              <span class="switch on" aria-hidden="true"></span>
+              <span class="city"><b>利马</b><small>America/Lima · UTC−5</small></span>
+              <time>2026-09-02 01:35</time>
+              <span class="format">日期时间 + 星期⌄</span>
+            </div>
+            <div class="clock-row">
+              <span class="switch on" aria-hidden="true"></span>
+              <span class="city"><b>UTC</b><small>UTC · UTC</small></span>
+              <time>06:35</time>
+              <span class="format">24 小时⌄</span>
+            </div>
+          </div>
+          <div class="window-footer">
+            <span><b>统一格式</b><small>也可以在每个时区右侧单独设置</small></span>
+            <span>多种格式⌄</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features" aria-labelledby="features-title">
+      <div class="section-heading">
+        <h2 id="features-title">刚刚好，就这些。</h2>
+        <p>专注于时区与时间显示本身。</p>
+      </div>
+
+      <div class="feature-band formats-band">
+        <div class="feature-copy">
+          <span class="feature-number">01</span>
+          <h3>每个时区，各自合适</h3>
+          <p>时间、日期、星期和 ISO 格式，每个城市都可以不同。</p>
+        </div>
+        <div class="format-samples" aria-label="日期时间格式示例">
+          <span><b>UTC</b><time>06:35</time><small>24 小时</small></span>
+          <span><b>利马</b><time>01:35:20</time><small>带秒</small></span>
+          <span><b>东京</b><time>2026-09-02 15:35 周三</time><small>日期时间 + 星期</small></span>
+        </div>
+      </div>
+
+      <div class="feature-band unified-band">
+        <div class="feature-copy">
+          <span class="feature-number">02</span>
+          <h3>统一设置，也能单独调整</h3>
+          <p>底部一键应用到全部时钟，之后仍可修改任意一行。</p>
+        </div>
+        <div class="settings-demo">
+          <div><b>统一格式</b><span>完整日期 + 时间⌄</span></div>
+          <div><b>利马</b><span>日期时间 + 星期⌄</span></div>
+          <div><b>UTC</b><span>24 小时⌄</span></div>
+        </div>
+      </div>
+
+      <div class="feature-band privacy-band">
+        <div class="menu-strip">
+          <span>UTC <b>06:35</b></span><i>│</i>
+          <span>利马 <b>01:35</b></span><i>│</i>
+          <span>东京 <b>15:35</b></span>
+        </div>
+        <div class="feature-copy compact">
+          <span class="feature-number">03</span>
+          <h3>菜单栏，一眼分清</h3>
+          <p>纤细分隔符让多个时区清楚而不拥挤。</p>
+        </div>
+        <div class="feature-copy compact privacy-copy">
+          <span class="feature-number">04</span>
+          <h3>完全离线</h3>
+          <p>使用系统时间与 macOS 时区数据。无账户、无网络、无分析。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="open-source" id="open-source" aria-labelledby="open-title">
+      <div class="download-panel">
+        <h2 id="open-title">小而美，也完全开放。</h2>
+        <p>免费下载。MIT 开源。每一次正式发布，都有可验证的 macOS 安装包。</p>
+        <div class="download-actions">
+          <a class="button button-light" href="https://github.com/hjingsuper/Zonelet/releases/latest/download/Zonelet-macOS.zip">下载最新版本</a>
+          <a class="release-link" href="https://github.com/hjingsuper/Zonelet/releases">查看全部 Releases&nbsp; →</a>
+        </div>
+      </div>
+
+      <ol class="release-flow" aria-label="自动发布流程">
+        <li><span>1</span><div><h3>提交代码</h3><p>向 <code>main</code> 推送代码，触发 GitHub Actions。</p></div></li>
+        <li><span>2</span><div><h3>自动测试与打包</h3><p>每次提交都会生成可下载的 macOS 构建产物。</p></div></li>
+        <li><span>3</span><div><h3>发布 Release</h3><p>推送 <code>v1.6</code> 这样的标签，即可创建正式版本。</p></div></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>
+    <a class="brand footer-brand" href="#top">Zonelet</a>
+    <div>
+      <a href="https://github.com/hjingsuper/Zonelet">GitHub</a>
+      <a href="https://github.com/hjingsuper/Zonelet/blob/main/LICENSE">MIT License</a>
+      <span>© 2026 hjingsuper</span>
+    </div>
+  </footer>
+</body>
+</html>
