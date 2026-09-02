@@ -19,17 +19,23 @@ jobs:
         run: swift test
       - name: Build app bundle
         run: ZONELET_CONFIGURATION=release ./script/build_and_run.sh --package
-      - name: Create archive and checksum
+      - name: Verify Apple Silicon build
         run: |
-          ditto -c -k --sequesterRsrc --keepParent dist/Zonelet.app Zonelet-macOS.zip
-          shasum -a 256 Zonelet-macOS.zip > Zonelet-macOS.zip.sha256
+          test "$(uname -m)" = "arm64"
+          test "$(lipo -archs dist/Zonelet.app/Contents/MacOS/Zonelet)" = "arm64"
+          codesign --verify --deep --strict --verbose=2 dist/Zonelet.app
+      - name: Create DMG and checksum
+        run: |
+          bash ./script/package_dmg.sh dist/Zonelet.app Zonelet-Apple-Silicon.dmg
+          hdiutil verify Zonelet-Apple-Silicon.dmg
+          shasum -a 256 Zonelet-Apple-Silicon.dmg > Zonelet-Apple-Silicon.dmg.sha256
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Zonelet-macOS-${{ github.sha }}
+          name: Zonelet-Apple-Silicon-${{ github.sha }}
           path: |
-            Zonelet-macOS.zip
-            Zonelet-macOS.zip.sha256
+            Zonelet-Apple-Silicon.dmg
+            Zonelet-Apple-Silicon.dmg.sha256
           retention-days: 14
 
   release:
@@ -42,20 +48,20 @@ jobs:
       - name: Download packaged app
         uses: actions/download-artifact@v5
         with:
-          name: Zonelet-macOS-${{ github.sha }}
+          name: Zonelet-Apple-Silicon-${{ github.sha }}
           path: release
       - name: Publish GitHub Release
         run: |
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" \
-              release/Zonelet-macOS.zip \
-              release/Zonelet-macOS.zip.sha256 \
+              release/Zonelet-Apple-Silicon.dmg \
+              release/Zonelet-Apple-Silicon.dmg.sha256 \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
-              release/Zonelet-macOS.zip \
-              release/Zonelet-macOS.zip.sha256 \
+              release/Zonelet-Apple-Silicon.dmg \
+              release/Zonelet-Apple-Silicon.dmg.sha256 \
               --repo "$GITHUB_REPOSITORY" \
               --title "Zonelet $GITHUB_REF_NAME" \
               --generate-notes
