@@ -18,7 +18,7 @@ jobs:
       - name: Resolve build version
         shell: bash
         run: |
-          VERSION="1.9"
+          VERSION="1.10"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           fi
@@ -55,10 +55,12 @@ jobs:
             CERTIFICATE_BASE64="$MACOS_CERTIFICATE_BASE64"
             CERTIFICATE_PASSWORD="$MACOS_CERTIFICATE_PASSWORD"
             SIGNING_TIMESTAMP=1
+            DISABLE_LIBRARY_VALIDATION=0
           elif [[ -n "$ZONELET_SIGNING_CERTIFICATE_BASE64" ]]; then
             CERTIFICATE_BASE64="$ZONELET_SIGNING_CERTIFICATE_BASE64"
             CERTIFICATE_PASSWORD="$ZONELET_SIGNING_CERTIFICATE_PASSWORD"
             SIGNING_TIMESTAMP=0
+            DISABLE_LIBRARY_VALIDATION=1
           else
             echo "No stable certificate configured; using an ad-hoc signature."
             exit 0
@@ -104,6 +106,7 @@ jobs:
           test -n "$SIGNING_IDENTITY"
           echo "ZONELET_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
           echo "ZONELET_SIGNING_TIMESTAMP=$SIGNING_TIMESTAMP" >> "$GITHUB_ENV"
+          echo "ZONELET_DISABLE_LIBRARY_VALIDATION=$DISABLE_LIBRARY_VALIDATION" >> "$GITHUB_ENV"
       - name: Build app bundle
         run: ZONELET_CONFIGURATION=release ./script/build_and_run.sh --package
       - name: Verify Apple Silicon build
@@ -111,6 +114,10 @@ jobs:
           test "$(uname -m)" = "arm64"
           test "$(lipo -archs dist/Zonelet.app/Contents/MacOS/Zonelet)" = "arm64"
           codesign --verify --deep --strict --verbose=2 dist/Zonelet.app
+          open -n dist/Zonelet.app
+          sleep 3
+          pgrep -x Zonelet
+          pkill -x Zonelet
       - name: Notarize and staple app
         if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_NOTARIZE == '1'
         env:

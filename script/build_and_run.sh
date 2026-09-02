@@ -8,8 +8,9 @@ MIN_SYSTEM_VERSION="14.0"
 BUILD_CONFIGURATION="${ZONELET_CONFIGURATION:-debug}"
 SIGNING_IDENTITY="${ZONELET_SIGNING_IDENTITY:--}"
 SIGNING_TIMESTAMP="${ZONELET_SIGNING_TIMESTAMP:-1}"
-APP_VERSION="${ZONELET_VERSION:-1.9}"
-APP_BUILD="${ZONELET_BUILD_NUMBER:-21}"
+DISABLE_LIBRARY_VALIDATION="${ZONELET_DISABLE_LIBRARY_VALIDATION:-0}"
+APP_VERSION="${ZONELET_VERSION:-1.10}"
+APP_BUILD="${ZONELET_BUILD_NUMBER:-25}"
 SPARKLE_PUBLIC_KEY="i9H5HUPmZ02/s3+M+a7SIPYxvZgEHFEkHOcTtoQtIK0="
 SPARKLE_FEED_URL="https://github.com/hjingsuper/Zonelet/releases/latest/download/appcast.xml"
 
@@ -99,9 +100,27 @@ else
     "$SPARKLE_PATH/Updater.app"
   codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$APP_FRAMEWORKS/Sparkle.framework"
-  codesign "${SIGNING_ARGS[@]}" \
-    --sign "$SIGNING_IDENTITY" \
-    "$APP_BUNDLE"
+  if [[ "$DISABLE_LIBRARY_VALIDATION" == "1" ]]; then
+    APP_ENTITLEMENTS="$DIST_DIR/$APP_NAME.entitlements"
+    cat >"$APP_ENTITLEMENTS" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+    codesign "${SIGNING_ARGS[@]}" \
+      --entitlements "$APP_ENTITLEMENTS" \
+      --sign "$SIGNING_IDENTITY" \
+      "$APP_BUNDLE"
+  else
+    codesign "${SIGNING_ARGS[@]}" \
+      --sign "$SIGNING_IDENTITY" \
+      "$APP_BUNDLE"
+  fi
 fi
 
 open_app() {
