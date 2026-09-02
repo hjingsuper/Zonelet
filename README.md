@@ -8,7 +8,7 @@
 
 ## 功能
 
-- 添加任意系统时区；首次启动默认包含 UTC 和秘鲁利马
+- 添加任意系统时区；首次启动默认只有 UTC
 - 默认简体中文，也可切换 English
 - 可一键统一全部时区格式，也可单独设置每个时区，并实时预览
 - 多个时区之间自动显示分隔符
@@ -36,7 +36,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 Zonelet is a tiny, fully offline macOS menu bar world clock. Each clock has its
 own date and time format, visible clocks are clearly separated, and new installs
-include UTC and Lima. There are no accounts, analytics, or network access.
+start with UTC only. There are no accounts, analytics, or network access.
 
 ## License
 
