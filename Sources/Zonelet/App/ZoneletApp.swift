@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.local.Zonelet",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.Zonelet",
         category: "Lifecycle"
     )
     private var store: ClockStore?
@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("Application finished launching")
         NSApp.setActivationPolicy(.accessory)
+
+        migratePreferencesFromLegacyBundleIdentifierIfNeeded()
 
         let languageStore = LanguageStore()
         let store = ClockStore(languageStore: languageStore)
@@ -37,6 +39,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         logger.notice("Application services are ready")
         updateManager.start()
+    }
+
+    private func migratePreferencesFromLegacyBundleIdentifierIfNeeded() {
+        let defaults = UserDefaults.standard
+        let migrationKey = "zonelet.did-migrate-com.local.Zonelet"
+        guard !defaults.bool(forKey: migrationKey) else { return }
+
+        if let legacy = UserDefaults.standard.persistentDomain(forName: "com.local.Zonelet") {
+            for (key, value) in legacy where defaults.object(forKey: key) == nil {
+                defaults.set(value, forKey: key)
+            }
+            logger.notice("Migrated preferences from the legacy bundle identifier")
+        }
+
+        defaults.set(true, forKey: migrationKey)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

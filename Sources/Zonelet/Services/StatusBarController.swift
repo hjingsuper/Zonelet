@@ -28,7 +28,7 @@ final class StatusBarController: NSObject {
     private let store: ClockStore
     private let languageStore: LanguageStore
     private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.local.Zonelet",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.Zonelet",
         category: "MenuBar"
     )
     private let openSettings: () -> Void

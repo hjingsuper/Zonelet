@@ -18,7 +18,7 @@ jobs:
       - name: Resolve build version
         shell: bash
         run: |
-          VERSION="1.11"
+          VERSION="1.12"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           fi
