@@ -61,6 +61,7 @@ struct ClockPresentationTests {
         let title = ClockPresentation.menuTitle(
             for: lima,
             at: date,
+            localTimeZone: try #require(TimeZone(identifier: "Asia/Shanghai")),
             language: .simplifiedChinese
         )
 

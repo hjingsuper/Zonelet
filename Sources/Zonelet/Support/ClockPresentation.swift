@@ -42,11 +42,12 @@ enum ClockPresentation {
     static func menuTitle(
         for clock: ZoneClock,
         at date: Date = .now,
+        localTimeZone: TimeZone = .current,
         language: AppLanguage = .english,
         maxLength: Int = 30
     ) -> String {
         let time = timeString(at: date, in: clock.timeZone, format: clock.effectiveDisplayFormat)
-        let offset = dayOffset(at: date, to: clock.timeZone)
+        let offset = dayOffset(at: date, from: localTimeZone, to: clock.timeZone)
         let dayMarker = dayMarker(for: offset, language: language)
 
         let title = "\(clock.label) \(time)\(dayMarker)"
@@ -56,12 +57,14 @@ enum ClockPresentation {
     static func statusTitle(
         for clock: ZoneClock,
         at date: Date = .now,
+        localTimeZone: TimeZone = .current,
         language: AppLanguage = .english,
         isLast: Bool
     ) -> String {
         let title = menuTitle(
             for: clock,
             at: date,
+            localTimeZone: localTimeZone,
             language: language,
             maxLength: isLast ? 30 : 28
         )
@@ -71,12 +74,21 @@ enum ClockPresentation {
     static func statusTitle(
         for clocks: [ZoneClock],
         at date: Date = .now,
+        localTimeZone: TimeZone = .current,
         language: AppLanguage = .english
     ) -> String {
         guard !clocks.isEmpty else { return "Zonelet" }
         let maxLength = clocks.count == 1 ? 30 : 28
         return clocks
-            .map { menuTitle(for: $0, at: date, language: language, maxLength: maxLength) }
+            .map {
+                menuTitle(
+                    for: $0,
+                    at: date,
+                    localTimeZone: localTimeZone,
+                    language: language,
+                    maxLength: maxLength
+                )
+            }
             .joined(separator: "  │  ")
     }
 
