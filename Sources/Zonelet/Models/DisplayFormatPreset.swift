@@ -8,6 +8,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
     case localizedDateTime
     case weekdayTime
     case fullDateTime
+    case fullDateTimeWithWeekday
     case iso8601
 
     var id: String { rawValue }
@@ -21,6 +22,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
         case .localizedDateTime: "MMM d HH:mm"
         case .weekdayTime: "EEE HH:mm"
         case .fullDateTime: "yyyy-MM-dd HH:mm"
+        case .fullDateTimeWithWeekday: "yyyy-MM-dd HH:mm EEE"
         case .iso8601: "yyyy-MM-dd'T'HH:mm"
         }
     }
@@ -34,6 +36,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
         case (.simplifiedChinese, .localizedDateTime): "本地日期 + 时间"
         case (.simplifiedChinese, .weekdayTime): "星期 + 时间"
         case (.simplifiedChinese, .fullDateTime): "完整日期 + 时间"
+        case (.simplifiedChinese, .fullDateTimeWithWeekday): "日期时间 + 星期"
         case (.simplifiedChinese, .iso8601): "ISO 日期 + 时间"
 
         case (.english, .time24): "24-hour"
@@ -43,6 +46,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
         case (.english, .localizedDateTime): "Local Date + Time"
         case (.english, .weekdayTime): "Weekday + Time"
         case (.english, .fullDateTime): "Full Date + Time"
+        case (.english, .fullDateTimeWithWeekday): "Date, Time + Weekday"
         case (.english, .iso8601): "ISO Date + Time"
         }
     }
