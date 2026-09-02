@@ -35,6 +35,10 @@ Zonelet 是免费开源项目，目前没有 Apple Developer 证书。首次打�
 提示“Apple 无法验证 Zonelet”，请确认安装包来自本仓库的 GitHub Releases，
 再前往“系统设置 → 隐私与安全性”，找到被阻止的 Zonelet 并点击“仍要打开”。
 
+从 v1.9 开始，发布包使用固定的开源项目签名身份，让 macOS 能在升级后继续
+识别同一个 Zonelet。首次从 v1.8 或更早版本升级时，请在“系统设置 → 菜单栏 →
+允许在菜单栏显示”中将 Zonelet 关闭再打开一次；之后升级不需要重复操作。
+
 ## 运行
 
 需要 macOS 14 或更高版本以及 Xcode Command Line Tools。
@@ -60,8 +64,8 @@ python3 -m pip install dmgbuild==1.6.7
 ## 发布
 
 推送新的 `v*` 标签会自动测试、打包 Apple Silicon DMG、生成 SHA-256
-校验文件并发布 GitHub Release。没有 Apple 证书时使用临时签名，用户需按
-上面的步骤在“隐私与安全性”中允许首次打开。
+校验文件并发布 GitHub Release。没有 Apple 证书时使用固定的开源项目签名，
+用户仍需按上面的步骤在“隐私与安全性”中允许首次打开。
 
 未来如果有 Apple Developer 证书，可以在仓库的
 **Settings → Secrets and variables → Actions** 中配置：
@@ -96,5 +100,5 @@ Project home: <https://github.com/hjingsuper/Zonelet>
 本软件为免费开源项目，仅供交流学习与个人使用。请遵守相关法律法规与开源协议，勿用于任何商业或非法用途。
 
 The website is deployed from `docs/` with GitHub Pages. Every push builds a
-downloadable Actions artifact; pushing a version tag such as `v1.8` creates a
+downloadable Actions artifact; pushing a version tag such as `v1.9` creates a
 GitHub Release with an Apple Silicon DMG and SHA-256 checksum.

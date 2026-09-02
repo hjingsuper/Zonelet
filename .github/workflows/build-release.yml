@@ -18,7 +18,7 @@ jobs:
       - name: Resolve build version
         shell: bash
         run: |
-          VERSION="1.8"
+          VERSION="1.9"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           fi
@@ -44,25 +44,35 @@ jobs:
             echo "ZONELET_CAN_NOTARIZE=0" >> "$GITHUB_ENV"
             echo "Apple credentials are not configured; publishing an ad-hoc signed build."
           fi
-      - name: Import Developer ID certificate
+      - name: Import stable signing certificate
         env:
           MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          ZONELET_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ZONELET_SIGNING_CERTIFICATE_BASE64 }}
+          ZONELET_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.ZONELET_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          if [[ -z "$MACOS_CERTIFICATE_BASE64" ]]; then
-            echo "No Developer ID certificate configured; using an ad-hoc signature for this non-release build."
+          if [[ -n "$MACOS_CERTIFICATE_BASE64" ]]; then
+            CERTIFICATE_BASE64="$MACOS_CERTIFICATE_BASE64"
+            CERTIFICATE_PASSWORD="$MACOS_CERTIFICATE_PASSWORD"
+            SIGNING_TIMESTAMP=1
+          elif [[ -n "$ZONELET_SIGNING_CERTIFICATE_BASE64" ]]; then
+            CERTIFICATE_BASE64="$ZONELET_SIGNING_CERTIFICATE_BASE64"
+            CERTIFICATE_PASSWORD="$ZONELET_SIGNING_CERTIFICATE_PASSWORD"
+            SIGNING_TIMESTAMP=0
+          else
+            echo "No stable certificate configured; using an ad-hoc signature."
             exit 0
           fi
-          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          CERTIFICATE_PATH="$RUNNER_TEMP/zonelet-signing.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/zonelet-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
 
-          printf '%s' "$MACOS_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security import "$CERTIFICATE_PATH" \
-            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -P "$CERTIFICATE_PASSWORD" \
             -A \
             -t cert \
             -f pkcs12 \
@@ -74,9 +84,26 @@ jobs:
             "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
 
-          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)"
+          if [[ "$SIGNING_TIMESTAMP" == "0" ]]; then
+            CERTIFICATE_PEM="$RUNNER_TEMP/zonelet-signing.pem"
+            CERTIFICATE_PASSWORD="$CERTIFICATE_PASSWORD" openssl pkcs12 \
+              -in "$CERTIFICATE_PATH" \
+              -clcerts \
+              -nokeys \
+              -passin env:CERTIFICATE_PASSWORD \
+              -out "$CERTIFICATE_PEM"
+            sudo security add-trusted-cert \
+              -d \
+              -r trustRoot \
+              -p codeSign \
+              -k /Library/Keychains/System.keychain \
+              "$CERTIFICATE_PEM"
+          fi
+
+          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(.*\)"/\1/p' | head -n 1)"
           test -n "$SIGNING_IDENTITY"
           echo "ZONELET_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "ZONELET_SIGNING_TIMESTAMP=$SIGNING_TIMESTAMP" >> "$GITHUB_ENV"
       - name: Build app bundle
         run: ZONELET_CONFIGURATION=release ./script/build_and_run.sh --package
       - name: Verify Apple Silicon build
@@ -108,9 +135,13 @@ jobs:
           python3 -m pip install --disable-pip-version-check dmgbuild==1.6.7
           bash ./script/package_dmg.sh dist/Zonelet.app Zonelet-Apple-Silicon.dmg
           if [[ -n "${ZONELET_SIGNING_IDENTITY:-}" ]]; then
+            TIMESTAMP_ARGS=()
+            if [[ "${ZONELET_SIGNING_TIMESTAMP:-1}" == "1" ]]; then
+              TIMESTAMP_ARGS+=(--timestamp)
+            fi
             codesign \
               --force \
-              --timestamp \
+              "${TIMESTAMP_ARGS[@]}" \
               --sign "$ZONELET_SIGNING_IDENTITY" \
               Zonelet-Apple-Silicon.dmg
           fi

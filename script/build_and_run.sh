@@ -7,8 +7,9 @@ BUNDLE_ID="${ZONELET_BUNDLE_ID:-com.local.Zonelet}"
 MIN_SYSTEM_VERSION="14.0"
 BUILD_CONFIGURATION="${ZONELET_CONFIGURATION:-debug}"
 SIGNING_IDENTITY="${ZONELET_SIGNING_IDENTITY:--}"
-APP_VERSION="${ZONELET_VERSION:-1.8}"
-APP_BUILD="${ZONELET_BUILD_NUMBER:-19}"
+SIGNING_TIMESTAMP="${ZONELET_SIGNING_TIMESTAMP:-1}"
+APP_VERSION="${ZONELET_VERSION:-1.9}"
+APP_BUILD="${ZONELET_BUILD_NUMBER:-21}"
 SPARKLE_PUBLIC_KEY="i9H5HUPmZ02/s3+M+a7SIPYxvZgEHFEkHOcTtoQtIK0="
 SPARKLE_FEED_URL="https://github.com/hjingsuper/Zonelet/releases/latest/download/appcast.xml"
 
@@ -83,21 +84,25 @@ PLIST
 if [[ "$SIGNING_IDENTITY" == "-" ]]; then
   codesign --force --sign - "$APP_BUNDLE" >/dev/null
 else
+  SIGNING_TIME_ARGS=()
+  if [[ "$SIGNING_TIMESTAMP" == "1" ]]; then
+    SIGNING_TIME_ARGS+=(--timestamp)
+  fi
   SPARKLE_PATH="$APP_FRAMEWORKS/Sparkle.framework/Versions/B"
-  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$SPARKLE_PATH/XPCServices/Installer.xpc"
-  codesign --force --options runtime --timestamp --preserve-metadata=entitlements \
+  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --preserve-metadata=entitlements \
     --sign "$SIGNING_IDENTITY" "$SPARKLE_PATH/XPCServices/Downloader.xpc"
-  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$SPARKLE_PATH/Autoupdate"
-  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$SPARKLE_PATH/Updater.app"
-  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$APP_FRAMEWORKS/Sparkle.framework"
   codesign \
     --force \
     --options runtime \
-    --timestamp \
+    "${SIGNING_TIME_ARGS[@]}" \
     --sign "$SIGNING_IDENTITY" \
     "$APP_BUNDLE"
 fi
