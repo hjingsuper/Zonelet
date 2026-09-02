@@ -39,11 +39,12 @@ final class StatusBarController: NSObject {
     private func rebuildClocks() {
         if statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            item.autosaveName = "Zonelet.MainClock"
             item.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             item.button?.image = nil
             item.button?.imagePosition = .noImage
             statusItem = item
-            logger.notice("Created status item")
+            logger.notice("Created status item with stable autosave name")
         }
 
         updateStatusItem()
