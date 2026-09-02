@@ -24,6 +24,7 @@ enum L10nKey {
     case launchAtLogin
     case launchAtLoginFailed
     case launchAtLoginNeedsApproval
+    case retryLaunchAtLogin
     case launchAtLoginUnavailable
     case manageClocks
     case moveDown
@@ -80,9 +81,10 @@ final class LanguageStore {
         case (.simplifiedChinese, .label): "名称"
         case (.simplifiedChinese, .language): "语言"
         case (.simplifiedChinese, .launchAtLogin): "开机自启"
-        case (.simplifiedChinese, .launchAtLoginFailed): "设置失败，请确认 Zonelet 已移入“应用程序”文件夹。"
+        case (.simplifiedChinese, .launchAtLoginFailed): "注册失败，请确认已安装到“应用程序”，然后重新检测。"
         case (.simplifiedChinese, .launchAtLoginNeedsApproval): "需要在“系统设置 → 通用 → 登录项”中允许。"
-        case (.simplifiedChinese, .launchAtLoginUnavailable): "当前无法注册登录项。"
+        case (.simplifiedChinese, .retryLaunchAtLogin): "重新检测"
+        case (.simplifiedChinese, .launchAtLoginUnavailable): "未找到登录项，请确认已安装到“应用程序”。"
         case (.simplifiedChinese, .manageClocks): "管理时区…"
         case (.simplifiedChinese, .moveDown): "下移"
         case (.simplifiedChinese, .moveUp): "上移"
@@ -112,9 +114,10 @@ final class LanguageStore {
         case (.english, .label): "Label"
         case (.english, .language): "Language"
         case (.english, .launchAtLogin): "Launch at Login"
-        case (.english, .launchAtLoginFailed): "Could not update the setting. Make sure Zonelet is in Applications."
+        case (.english, .launchAtLoginFailed): "Registration failed. Install Zonelet in Applications, then check again."
         case (.english, .launchAtLoginNeedsApproval): "Allow Zonelet in System Settings → General → Login Items."
-        case (.english, .launchAtLoginUnavailable): "The login item is currently unavailable."
+        case (.english, .retryLaunchAtLogin): "Check Again"
+        case (.english, .launchAtLoginUnavailable): "Login item not found. Make sure Zonelet is installed in Applications."
         case (.english, .manageClocks): "Manage Clocks…"
         case (.english, .moveDown): "Move Down"
         case (.english, .moveUp): "Move Up"

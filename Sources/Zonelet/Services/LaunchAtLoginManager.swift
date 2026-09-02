@@ -49,6 +49,14 @@ final class LaunchAtLoginManager {
         updateStatus()
     }
 
+    func retryRegistration() {
+        if isEnabled {
+            applyRequestedState()
+        } else {
+            updateStatus()
+        }
+    }
+
     private let defaults: UserDefaults
 
     private func applyRequestedState() {
@@ -75,13 +83,10 @@ final class LaunchAtLoginManager {
         switch SMAppService.mainApp.status {
         case .enabled:
             status = .enabled
-            isEnabled = true
         case .requiresApproval:
             status = .requiresApproval
-            isEnabled = true
         case .notRegistered:
-            status = .disabled
-            isEnabled = false
+            status = isEnabled ? .failed : .disabled
         case .notFound:
             status = .unavailable
         @unknown default:

@@ -42,6 +42,18 @@ struct ClockPresentationTests {
         #expect(!ClockPresentation.statusTitle(for: clock, at: date, isLast: true).contains("│"))
     }
 
+    @Test("Combines visible clocks into one stable menu bar item")
+    func combinedMenuBarTitle() throws {
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-02T08:05:00Z"))
+        let lima = ZoneClock(timeZoneIdentifier: "America/Lima", label: "利马")
+        let utc = ZoneClock(timeZoneIdentifier: "UTC", label: "UTC")
+        let title = ClockPresentation.statusTitle(for: [lima, utc], at: date)
+
+        #expect(title.contains("利马"))
+        #expect(title.contains("UTC"))
+        #expect(title.components(separatedBy: "│").count == 2)
+    }
+
     @Test("Formats date and time with a custom pattern")
     func customDateAndTimeFormat() throws {
         let date = try #require(ISO8601DateFormatter().date(from: "2026-09-02T08:05:00Z"))

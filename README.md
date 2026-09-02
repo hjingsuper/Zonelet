@@ -14,14 +14,16 @@
 - 默认简体中文，也可切换 English
 - 可一键统一全部时区格式，也可单独设置每个时区，并实时预览
 - 多个时区之间自动显示分隔符
+- 所有已启用时区集中在一个稳定的菜单栏项目中显示
 - 单独控制菜单栏显示、重命名和排序
 - 跨日时显示 `+1` 或 `-1`
 - 可选择是否开机自启；默认开启，启动时只驻留菜单栏、不弹出主界面
+- 登录项注册失败时可重新检测，并提示确认应用安装位置
 - 自动在后台下载更新，安装完成后重新启动
 - 时间和时区换算完全离线；仅检查更新时连接 GitHub Releases
 - 没有额外启动图标、账号、分析、日历、天气或同步
 
-点击菜单栏中的任意时区即可打开管理界面，也可以再次启动 Zonelet。
+点击菜单栏中的 Zonelet 时间即可打开管理界面，也可以再次启动 Zonelet。
 
 ## 安装与首次打开
 
@@ -94,5 +96,5 @@ Project home: <https://github.com/hjingsuper/Zonelet>
 本软件为免费开源项目，仅供交流学习与个人使用。请遵守相关法律法规与开源协议，勿用于任何商业或非法用途。
 
 The website is deployed from `docs/` with GitHub Pages. Every push builds a
-downloadable Actions artifact; pushing a version tag such as `v1.7` creates a
+downloadable Actions artifact; pushing a version tag such as `v1.8` creates a
 GitHub Release with an Apple Silicon DMG and SHA-256 checksum.

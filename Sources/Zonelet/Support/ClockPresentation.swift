@@ -70,6 +70,17 @@ enum ClockPresentation {
         return isLast ? title : "\(title)  │"
     }
 
+    static func statusTitle(
+        for clocks: [ZoneClock],
+        at date: Date = .now
+    ) -> String {
+        guard !clocks.isEmpty else { return "Zonelet" }
+        let maxLength = clocks.count == 1 ? 30 : 28
+        return clocks
+            .map { menuTitle(for: $0, at: date, maxLength: maxLength) }
+            .joined(separator: "  │  ")
+    }
+
     private static func dayComponents(at date: Date, in timeZone: TimeZone) -> DateComponents {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

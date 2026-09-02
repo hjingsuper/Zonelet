@@ -43,7 +43,7 @@ struct ClockListView: View {
         }
         .frame(minWidth: 560, idealWidth: 620, minHeight: 460, idealHeight: 560)
         .background(.regularMaterial)
-        .onAppear { launchAtLoginManager.refresh() }
+        .onAppear { launchAtLoginManager.retryRegistration() }
         .sheet(isPresented: $showingAddZone) {
             AddZoneView(
                 store: store,
@@ -99,9 +99,17 @@ struct ClockListView: View {
                     .controlSize(.small)
 
                     if let statusText = launchAtLoginStatusText {
-                        Text(statusText)
+                        HStack(spacing: 8) {
+                            Text(statusText)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+
+                            Button(languageStore[.retryLaunchAtLogin]) {
+                                launchAtLoginManager.retryRegistration()
+                            }
+                            .buttonStyle(.link)
                             .font(.caption2)
-                            .foregroundStyle(.orange)
+                        }
                     }
                 }
 

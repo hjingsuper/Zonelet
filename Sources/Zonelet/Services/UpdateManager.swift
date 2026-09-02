@@ -10,6 +10,9 @@ final class UpdateManager: NSObject, SPUUpdaterDelegate {
     )
 
     func start() {
+#if DEBUG
+        guard ProcessInfo.processInfo.environment["ZONELET_UI_PREVIEW"] != "1" else { return }
+#endif
         updaterController.startUpdater()
     }
 

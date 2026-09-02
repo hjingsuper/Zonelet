@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 @MainActor
 final class StatusBarController: NSObject {
@@ -26,60 +27,82 @@ final class StatusBarController: NSObject {
 
     private let store: ClockStore
     private let languageStore: LanguageStore
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.local.Zonelet",
+        category: "MenuBar"
+    )
     private let openSettings: () -> Void
     private let checkForUpdates: () -> Void
-    private var clockItems: [UUID: NSStatusItem] = [:]
+    private var statusItem: NSStatusItem?
     private var timer: Timer?
 
     private func rebuildClocks() {
-        clockItems.values.forEach(NSStatusBar.system.removeStatusItem)
-        clockItems.removeAll()
-
-        // New status items are inserted to the left, so build in reverse to
-        // preserve the order shown in the manager window.
-        let visibleClocks = store.clocks.filter(\.isVisible)
-        for clock in visibleClocks.reversed() {
+        if statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             item.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-            item.button?.title = ClockPresentation.statusTitle(
-                for: clock,
-                isLast: clock.id == visibleClocks.last?.id
-            )
-            item.button?.toolTip = clock.timeZoneIdentifier
-            item.menu = makeMenu(for: clock)
-            clockItems[clock.id] = item
+            item.button?.image = nil
+            item.button?.imagePosition = .noImage
+            statusItem = item
+            logger.notice("Created status item")
         }
+
+        updateStatusItem()
     }
 
     private func updateTimes() {
-        let now = Date()
-        let lastVisibleID = store.clocks.last(where: \.isVisible)?.id
-        for (id, item) in clockItems {
-            guard let clock = store.clock(id: id) else { continue }
-            item.button?.title = ClockPresentation.statusTitle(
-                for: clock,
-                at: now,
-                isLast: clock.id == lastVisibleID
-            )
-            item.menu = makeMenu(for: clock, at: now)
-        }
+        updateStatusItem(at: .now)
     }
 
-    private func makeMenu(for clock: ZoneClock, at date: Date = .now) -> NSMenu {
-        let menu = NSMenu()
-        let heading = NSMenuItem(
-            title: "\(TimeZoneCatalog.cityName(for: clock.timeZoneIdentifier, language: languageStore.language)) · \(TimeZoneCatalog.gmtOffset(for: clock.timeZone, at: date))",
-            action: nil,
-            keyEquivalent: ""
+    private func updateStatusItem(at date: Date = .now) {
+        guard let statusItem else { return }
+        let visibleClocks = store.clocks.filter(\.isVisible)
+        statusItem.button?.title = ClockPresentation.statusTitle(for: visibleClocks, at: date)
+        statusItem.button?.toolTip = visibleClocks.isEmpty
+            ? "Zonelet"
+            : visibleClocks.map(\.timeZoneIdentifier).joined(separator: " · ")
+        statusItem.menu = makeMenu(for: visibleClocks, at: date)
+        statusItem.isVisible = true
+        logger.debug(
+            "Updated status item: visible=\(statusItem.isVisible), clocks=\(visibleClocks.count), title=\(statusItem.button?.title ?? "", privacy: .public)"
         )
-        heading.isEnabled = false
-        menu.addItem(heading)
-        menu.addItem(.separator())
+    }
 
-        let hide = NSMenuItem(title: languageStore[.hideFromMenuBar], action: #selector(hideClock(_:)), keyEquivalent: "")
-        hide.target = self
-        hide.representedObject = clock.id.uuidString
-        menu.addItem(hide)
+    private func makeMenu(for clocks: [ZoneClock], at date: Date = .now) -> NSMenu {
+        let menu = NSMenu()
+        if clocks.isEmpty {
+            let heading = NSMenuItem(title: "Zonelet", action: nil, keyEquivalent: "")
+            heading.isEnabled = false
+            menu.addItem(heading)
+        } else {
+            for (index, clock) in clocks.enumerated() {
+                let time = ClockPresentation.timeString(
+                    at: date,
+                    in: clock.timeZone,
+                    format: clock.effectiveDisplayFormat
+                )
+                let heading = NSMenuItem(
+                    title: "\(clock.label)  \(time) · \(TimeZoneCatalog.gmtOffset(for: clock.timeZone, at: date))",
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                heading.isEnabled = false
+                menu.addItem(heading)
+
+                let hide = NSMenuItem(
+                    title: languageStore[.hideFromMenuBar],
+                    action: #selector(hideClock(_:)),
+                    keyEquivalent: ""
+                )
+                hide.target = self
+                hide.representedObject = clock.id.uuidString
+                hide.indentationLevel = 1
+                menu.addItem(hide)
+
+                if index < clocks.count - 1 {
+                    menu.addItem(.separator())
+                }
+            }
+        }
 
         menu.addItem(.separator())
         let settings = NSMenuItem(title: languageStore[.manageClocks], action: #selector(openZonelet), keyEquivalent: ",")
@@ -147,6 +170,8 @@ final class StatusBarController: NSObject {
 
     deinit {
         timer?.invalidate()
-        clockItems.values.forEach(NSStatusBar.system.removeStatusItem)
+        if let statusItem {
+            NSStatusBar.system.removeStatusItem(statusItem)
+        }
     }
 }

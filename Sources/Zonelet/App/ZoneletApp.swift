@@ -1,8 +1,13 @@
 import AppKit
+import OSLog
 import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.local.Zonelet",
+        category: "Lifecycle"
+    )
     private var store: ClockStore?
     private var languageStore: LanguageStore?
     private var launchAtLoginManager: LaunchAtLoginManager?
@@ -11,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.notice("Application finished launching")
         NSApp.setActivationPolicy(.accessory)
 
         let languageStore = LanguageStore()
@@ -29,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } checkForUpdates: { [weak updateManager] in
             updateManager?.checkForUpdates()
         }
+        logger.notice("Application services are ready")
         updateManager.start()
     }
 
