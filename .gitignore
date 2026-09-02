@@ -2,3 +2,5 @@
 dist/
 .DS_Store
 *.zip
+Assets/AppIcon-Source.png
+Assets/AppIcon.iconset/

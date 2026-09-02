@@ -15,8 +15,68 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Resolve build version
+        shell: bash
+        run: |
+          VERSION="1.7"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "ZONELET_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "ZONELET_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Test
         run: swift test
+      - name: Detect optional notarization credentials
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [[ -n "$MACOS_CERTIFICATE_BASE64" \
+             && -n "$MACOS_CERTIFICATE_PASSWORD" \
+             && -n "$APPLE_ID" \
+             && -n "$APPLE_TEAM_ID" \
+             && -n "$APPLE_APP_PASSWORD" ]]; then
+            echo "ZONELET_CAN_NOTARIZE=1" >> "$GITHUB_ENV"
+          else
+            echo "ZONELET_CAN_NOTARIZE=0" >> "$GITHUB_ENV"
+            echo "Apple credentials are not configured; publishing an ad-hoc signed build."
+          fi
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [[ -z "$MACOS_CERTIFICATE_BASE64" ]]; then
+            echo "No Developer ID certificate configured; using an ad-hoc signature for this non-release build."
+            exit 0
+          fi
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/zonelet-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+
+          printf '%s' "$MACOS_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)"
+          test -n "$SIGNING_IDENTITY"
+          echo "ZONELET_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
       - name: Build app bundle
         run: ZONELET_CONFIGURATION=release ./script/build_and_run.sh --package
       - name: Verify Apple Silicon build
@@ -24,11 +84,83 @@ jobs:
           test "$(uname -m)" = "arm64"
           test "$(lipo -archs dist/Zonelet.app/Contents/MacOS/Zonelet)" = "arm64"
           codesign --verify --deep --strict --verbose=2 dist/Zonelet.app
-      - name: Create DMG and checksum
+      - name: Notarize and staple app
+        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_NOTARIZE == '1'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
+          ditto -c -k --keepParent dist/Zonelet.app "$RUNNER_TEMP/Zonelet.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/Zonelet.zip" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple dist/Zonelet.app
+          xcrun stapler validate dist/Zonelet.app
+      - name: Set up Python for DMG packaging
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Create DMG
+        run: |
+          python3 -m pip install --disable-pip-version-check dmgbuild==1.6.7
           bash ./script/package_dmg.sh dist/Zonelet.app Zonelet-Apple-Silicon.dmg
+          if [[ -n "${ZONELET_SIGNING_IDENTITY:-}" ]]; then
+            codesign \
+              --force \
+              --timestamp \
+              --sign "$ZONELET_SIGNING_IDENTITY" \
+              Zonelet-Apple-Silicon.dmg
+          fi
+      - name: Notarize and staple DMG
+        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_NOTARIZE == '1'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          xcrun notarytool submit Zonelet-Apple-Silicon.dmg \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple Zonelet-Apple-Silicon.dmg
+          xcrun stapler validate Zonelet-Apple-Silicon.dmg
+          spctl -a -t open --context context:primary-signature -vv Zonelet-Apple-Silicon.dmg
+      - name: Verify DMG and create checksum
+        run: |
           hdiutil verify Zonelet-Apple-Silicon.dmg
           shasum -a 256 Zonelet-Apple-Silicon.dmg > Zonelet-Apple-Silicon.dmg.sha256
+      - name: Detect Sparkle signing key
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$SPARKLE_ED_PRIVATE_KEY" ]]; then
+            echo "ZONELET_CAN_SIGN_UPDATES=1" >> "$GITHUB_ENV"
+          else
+            echo "ZONELET_CAN_SIGN_UPDATES=0" >> "$GITHUB_ENV"
+          fi
+      - name: Generate signed Sparkle appcast
+        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_SIGN_UPDATES == '1'
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          APPCAST_DIR="$RUNNER_TEMP/zonelet-appcast"
+          mkdir -p "$APPCAST_DIR"
+          cp Zonelet-Apple-Silicon.dmg "$APPCAST_DIR/"
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | \
+            .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+              --ed-key-file - \
+              --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
+              --link "https://hjingsuper.github.io/Zonelet/" \
+              -o "$GITHUB_WORKSPACE/appcast.xml" \
+              "$APPCAST_DIR"
+      - name: Explain unavailable automatic updates
+        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_SIGN_UPDATES != '1'
+        run: echo "SPARKLE_ED_PRIVATE_KEY is not configured; this release will not update the appcast."
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -36,6 +168,7 @@ jobs:
           path: |
             Zonelet-Apple-Silicon.dmg
             Zonelet-Apple-Silicon.dmg.sha256
+            appcast.xml
           retention-days: 14
 
   release:
@@ -52,16 +185,21 @@ jobs:
           path: release
       - name: Publish GitHub Release
         run: |
+          ASSETS=(
+            release/Zonelet-Apple-Silicon.dmg
+            release/Zonelet-Apple-Silicon.dmg.sha256
+          )
+          if [[ -f release/appcast.xml ]]; then
+            ASSETS+=(release/appcast.xml)
+          fi
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" \
-              release/Zonelet-Apple-Silicon.dmg \
-              release/Zonelet-Apple-Silicon.dmg.sha256 \
+              "${ASSETS[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
-              release/Zonelet-Apple-Silicon.dmg \
-              release/Zonelet-Apple-Silicon.dmg.sha256 \
+              "${ASSETS[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --title "Zonelet $GITHUB_REF_NAME" \
               --generate-notes

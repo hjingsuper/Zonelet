@@ -11,13 +11,20 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 enum L10nKey {
     case addTimeZone
     case appSubtitle
+    case automaticUpdatesDescription
+    case checkForUpdates
     case chinese
+    case disclaimer
     case done
     case displayFormat
     case english
     case hideFromMenuBar
     case label
     case language
+    case launchAtLogin
+    case launchAtLoginFailed
+    case launchAtLoginNeedsApproval
+    case launchAtLoginUnavailable
     case manageClocks
     case moveDown
     case moveUp
@@ -62,13 +69,20 @@ final class LanguageStore {
         switch (language, key) {
         case (.simplifiedChinese, .addTimeZone): "添加时区"
         case (.simplifiedChinese, .appSubtitle): "世界时间，一眼即知"
+        case (.simplifiedChinese, .automaticUpdatesDescription): "自动在后台下载更新，安装完成后重新启动。"
+        case (.simplifiedChinese, .checkForUpdates): "检查更新…"
         case (.simplifiedChinese, .chinese): "简体中文"
+        case (.simplifiedChinese, .disclaimer): "本软件为免费开源项目，仅供交流学习与个人使用。请遵守相关法律法规与开源协议，勿用于任何商业或非法用途。"
         case (.simplifiedChinese, .done): "完成"
         case (.simplifiedChinese, .displayFormat): "菜单栏格式"
         case (.simplifiedChinese, .english): "English"
         case (.simplifiedChinese, .hideFromMenuBar): "从菜单栏隐藏"
         case (.simplifiedChinese, .label): "名称"
         case (.simplifiedChinese, .language): "语言"
+        case (.simplifiedChinese, .launchAtLogin): "开机自启"
+        case (.simplifiedChinese, .launchAtLoginFailed): "设置失败，请确认 Zonelet 已移入“应用程序”文件夹。"
+        case (.simplifiedChinese, .launchAtLoginNeedsApproval): "需要在“系统设置 → 通用 → 登录项”中允许。"
+        case (.simplifiedChinese, .launchAtLoginUnavailable): "当前无法注册登录项。"
         case (.simplifiedChinese, .manageClocks): "管理时区…"
         case (.simplifiedChinese, .moveDown): "下移"
         case (.simplifiedChinese, .moveUp): "上移"
@@ -87,13 +101,20 @@ final class LanguageStore {
 
         case (.english, .addTimeZone): "Add Time Zone"
         case (.english, .appSubtitle): "Your world clocks, at a glance"
+        case (.english, .automaticUpdatesDescription): "Downloads updates in the background, installs them, then relaunches."
+        case (.english, .checkForUpdates): "Check for Updates…"
         case (.english, .chinese): "简体中文"
+        case (.english, .disclaimer): "Zonelet is free and open source, intended only for learning, discussion, and personal use. Follow applicable laws and open-source licenses. Do not use it for commercial or illegal purposes."
         case (.english, .done): "Done"
         case (.english, .displayFormat): "Menu Bar Format"
         case (.english, .english): "English"
         case (.english, .hideFromMenuBar): "Hide from Menu Bar"
         case (.english, .label): "Label"
         case (.english, .language): "Language"
+        case (.english, .launchAtLogin): "Launch at Login"
+        case (.english, .launchAtLoginFailed): "Could not update the setting. Make sure Zonelet is in Applications."
+        case (.english, .launchAtLoginNeedsApproval): "Allow Zonelet in System Settings → General → Login Items."
+        case (.english, .launchAtLoginUnavailable): "The login item is currently unavailable."
         case (.english, .manageClocks): "Manage Clocks…"
         case (.english, .moveDown): "Move Down"
         case (.english, .moveUp): "Move Up"

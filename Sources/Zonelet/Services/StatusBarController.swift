@@ -5,11 +5,13 @@ final class StatusBarController: NSObject {
     init(
         store: ClockStore,
         languageStore: LanguageStore,
-        openSettings: @escaping () -> Void
+        openSettings: @escaping () -> Void,
+        checkForUpdates: @escaping () -> Void
     ) {
         self.store = store
         self.languageStore = languageStore
         self.openSettings = openSettings
+        self.checkForUpdates = checkForUpdates
         super.init()
 
         store.onChange = { [weak self] in
@@ -25,6 +27,7 @@ final class StatusBarController: NSObject {
     private let store: ClockStore
     private let languageStore: LanguageStore
     private let openSettings: () -> Void
+    private let checkForUpdates: () -> Void
     private var clockItems: [UUID: NSStatusItem] = [:]
     private var timer: Timer?
 
@@ -83,6 +86,14 @@ final class StatusBarController: NSObject {
         settings.target = self
         menu.addItem(settings)
 
+        let updates = NSMenuItem(
+            title: languageStore[.checkForUpdates],
+            action: #selector(checkForUpdatesNow),
+            keyEquivalent: ""
+        )
+        updates.target = self
+        menu.addItem(updates)
+
         let source = NSMenuItem(title: languageStore[.sourceOnGitHub], action: #selector(openSource), keyEquivalent: "")
         source.target = self
         menu.addItem(source)
@@ -115,6 +126,10 @@ final class StatusBarController: NSObject {
 
     @objc private func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    @objc private func checkForUpdatesNow() {
+        checkForUpdates()
     }
 
     @objc private func openSource() {

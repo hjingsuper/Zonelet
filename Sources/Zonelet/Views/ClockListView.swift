@@ -4,6 +4,8 @@ import SwiftUI
 struct ClockListView: View {
     let store: ClockStore
     let languageStore: LanguageStore
+    let launchAtLoginManager: LaunchAtLoginManager
+    let updateManager: UpdateManager
 
     @State private var showingAddZone = false
 
@@ -37,39 +39,11 @@ struct ClockListView: View {
             }
 
             Divider()
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 7) {
-                    Image(systemName: "calendar.badge.clock")
-                    Text(languageStore[.uniformFormat])
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Menu {
-                        ForEach(DisplayFormatPreset.allCases) { preset in
-                            Button(formatOptionLabel(preset)) {
-                                store.setDisplayFormatForAll(preset)
-                            }
-                        }
-                    } label: {
-                        Text(
-                            store.uniformDisplayFormat?.title(language: languageStore.language)
-                                ?? languageStore[.mixedFormats]
-                        )
-                        .frame(minWidth: 110, alignment: .trailing)
-                    }
-                    .menuStyle(.borderlessButton)
-                }
-
-                Text(languageStore[.formatDescription])
-                    .font(.caption2)
-                    .padding(.leading, 23)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
+            settingsFooter
         }
-        .frame(minWidth: 520, idealWidth: 560, minHeight: 380, idealHeight: 460)
+        .frame(minWidth: 560, idealWidth: 620, minHeight: 460, idealHeight: 560)
         .background(.regularMaterial)
+        .onAppear { launchAtLoginManager.refresh() }
         .sheet(isPresented: $showingAddZone) {
             AddZoneView(
                 store: store,
@@ -81,6 +55,100 @@ struct ClockListView: View {
     private func formatOptionLabel(_ preset: DisplayFormatPreset) -> String {
         let preview = ClockPresentation.timeString(in: .current, format: preset.pattern)
         return "\(preset.title(language: languageStore.language)) · \(preview)"
+    }
+
+    private var settingsFooter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "calendar.badge.clock")
+                Text(languageStore[.uniformFormat])
+                    .foregroundStyle(.primary)
+                Spacer()
+                Menu {
+                    ForEach(DisplayFormatPreset.allCases) { preset in
+                        Button(formatOptionLabel(preset)) {
+                            store.setDisplayFormatForAll(preset)
+                        }
+                    }
+                } label: {
+                    Text(
+                        store.uniformDisplayFormat?.title(language: languageStore.language)
+                            ?? languageStore[.mixedFormats]
+                    )
+                    .frame(minWidth: 110, alignment: .trailing)
+                }
+                .menuStyle(.borderlessButton)
+            }
+
+            Text(languageStore[.formatDescription])
+                .font(.caption2)
+                .padding(.leading, 23)
+
+            Divider()
+
+            HStack(alignment: .top, spacing: 22) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(
+                        languageStore[.launchAtLogin],
+                        isOn: Binding(
+                            get: { launchAtLoginManager.isEnabled },
+                            set: { launchAtLoginManager.setEnabled($0) }
+                        )
+                    )
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                    if let statusText = launchAtLoginStatusText {
+                        Text(statusText)
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Button(languageStore[.checkForUpdates]) {
+                        updateManager.checkForUpdates()
+                    }
+                    Text(languageStore[.automaticUpdatesDescription])
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Divider()
+
+            Label {
+                Text(languageStore[.disclaimer])
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.tint)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+    }
+
+    private var launchAtLoginStatusText: String? {
+        switch launchAtLoginManager.status {
+        case .disabled, .enabled:
+            nil
+        case .requiresApproval:
+            languageStore[.launchAtLoginNeedsApproval]
+        case .unavailable:
+            languageStore[.launchAtLoginUnavailable]
+        case .failed:
+            languageStore[.launchAtLoginFailed]
+        }
     }
 
     private var header: some View {

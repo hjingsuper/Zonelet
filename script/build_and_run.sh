@@ -6,25 +6,38 @@ APP_NAME="Zonelet"
 BUNDLE_ID="com.local.Zonelet"
 MIN_SYSTEM_VERSION="14.0"
 BUILD_CONFIGURATION="${ZONELET_CONFIGURATION:-debug}"
+SIGNING_IDENTITY="${ZONELET_SIGNING_IDENTITY:--}"
+APP_VERSION="${ZONELET_VERSION:-1.7}"
+APP_BUILD="${ZONELET_BUILD_NUMBER:-11}"
+SPARKLE_PUBLIC_KEY="BQCUt4MLIRTv8yHnZW9ctRF9LzVL5HDIEwVjdOFhZIM="
+SPARKLE_FEED_URL="https://github.com/hjingsuper/Zonelet/releases/latest/download/appcast.xml"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
+APP_FRAMEWORKS="$APP_CONTENTS/Frameworks"
+APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+APP_ICON="$ROOT_DIR/Assets/AppIcon.icns"
 
 cd "$ROOT_DIR"
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 swift build -c "$BUILD_CONFIGURATION"
-BUILD_BINARY="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)/$APP_NAME"
+BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
+BUILD_BINARY="$BUILD_DIR/$APP_NAME"
+SPARKLE_FRAMEWORK="$BUILD_DIR/Sparkle.framework"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_MACOS"
+mkdir -p "$APP_MACOS" "$APP_FRAMEWORKS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
+ditto "$SPARKLE_FRAMEWORK" "$APP_FRAMEWORKS/Sparkle.framework"
+cp "$APP_ICON" "$APP_RESOURCES/AppIcon.icns"
 chmod +x "$APP_BINARY"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -37,12 +50,14 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.6</string>
+  <string>$APP_VERSION</string>
   <key>CFBundleVersion</key>
-  <string>7</string>
+  <string>$APP_BUILD</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>LSUIElement</key>
@@ -51,11 +66,41 @@ cat >"$INFO_PLIST" <<PLIST
   <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>SUFeedURL</key>
+  <string>$SPARKLE_FEED_URL</string>
+  <key>SUPublicEDKey</key>
+  <string>$SPARKLE_PUBLIC_KEY</string>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <key>SUAutomaticallyUpdate</key>
+  <true/>
+  <key>SUScheduledCheckInterval</key>
+  <integer>21600</integer>
 </dict>
 </plist>
 PLIST
 
-codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null
+if [[ "$SIGNING_IDENTITY" == "-" ]]; then
+  codesign --force --sign - "$APP_BUNDLE" >/dev/null
+else
+  SPARKLE_PATH="$APP_FRAMEWORKS/Sparkle.framework/Versions/B"
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_PATH/XPCServices/Installer.xpc"
+  codesign --force --options runtime --timestamp --preserve-metadata=entitlements \
+    --sign "$SIGNING_IDENTITY" "$SPARKLE_PATH/XPCServices/Downloader.xpc"
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_PATH/Autoupdate"
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+    "$SPARKLE_PATH/Updater.app"
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" \
+    "$APP_FRAMEWORKS/Sparkle.framework"
+  codesign \
+    --force \
+    --options runtime \
+    --timestamp \
+    --sign "$SIGNING_IDENTITY" \
+    "$APP_BUNDLE"
+fi
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
