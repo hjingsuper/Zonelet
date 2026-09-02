@@ -135,13 +135,11 @@ jobs:
           python3 -m pip install --disable-pip-version-check dmgbuild==1.6.7
           bash ./script/package_dmg.sh dist/Zonelet.app Zonelet-Apple-Silicon.dmg
           if [[ -n "${ZONELET_SIGNING_IDENTITY:-}" ]]; then
-            TIMESTAMP_ARGS=()
+            DMG_SIGNING_ARGS=(--force)
             if [[ "${ZONELET_SIGNING_TIMESTAMP:-1}" == "1" ]]; then
-              TIMESTAMP_ARGS+=(--timestamp)
+              DMG_SIGNING_ARGS+=(--timestamp)
             fi
-            codesign \
-              --force \
-              "${TIMESTAMP_ARGS[@]}" \
+            codesign "${DMG_SIGNING_ARGS[@]}" \
               --sign "$ZONELET_SIGNING_IDENTITY" \
               Zonelet-Apple-Silicon.dmg
           fi

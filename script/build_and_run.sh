@@ -84,25 +84,22 @@ PLIST
 if [[ "$SIGNING_IDENTITY" == "-" ]]; then
   codesign --force --sign - "$APP_BUNDLE" >/dev/null
 else
-  SIGNING_TIME_ARGS=()
+  SIGNING_ARGS=(--force --options runtime)
   if [[ "$SIGNING_TIMESTAMP" == "1" ]]; then
-    SIGNING_TIME_ARGS+=(--timestamp)
+    SIGNING_ARGS+=(--timestamp)
   fi
   SPARKLE_PATH="$APP_FRAMEWORKS/Sparkle.framework/Versions/B"
-  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
+  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$SPARKLE_PATH/XPCServices/Installer.xpc"
-  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --preserve-metadata=entitlements \
+  codesign "${SIGNING_ARGS[@]}" --preserve-metadata=entitlements \
     --sign "$SIGNING_IDENTITY" "$SPARKLE_PATH/XPCServices/Downloader.xpc"
-  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
+  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$SPARKLE_PATH/Autoupdate"
-  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
+  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$SPARKLE_PATH/Updater.app"
-  codesign --force --options runtime "${SIGNING_TIME_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
+  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
     "$APP_FRAMEWORKS/Sparkle.framework"
-  codesign \
-    --force \
-    --options runtime \
-    "${SIGNING_TIME_ARGS[@]}" \
+  codesign "${SIGNING_ARGS[@]}" \
     --sign "$SIGNING_IDENTITY" \
     "$APP_BUNDLE"
 fi
