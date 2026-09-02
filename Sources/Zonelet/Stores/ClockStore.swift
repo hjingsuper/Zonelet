@@ -6,7 +6,6 @@ import Observation
 final class ClockStore {
     private enum Keys {
         static let clocks = "zonelet.clocks"
-        static let didSeedLima = "zonelet.seed-lima.v1"
         static let legacyDisplayFormat = "zonelet.display-format"
     }
 
@@ -27,14 +26,11 @@ final class ClockStore {
             clocks = saved
         } else {
             clocks = [
-                ZoneClock(timeZoneIdentifier: "UTC", label: "UTC", displayFormat: defaultDisplayFormat),
-                ZoneClock(timeZoneIdentifier: "America/Lima", label: "利马", displayFormat: defaultDisplayFormat)
+                ZoneClock(timeZoneIdentifier: "UTC", label: "UTC", displayFormat: defaultDisplayFormat)
             ]
-            defaults.set(true, forKey: Keys.didSeedLima)
             persist()
         }
 
-        seedLimaIfNeeded()
         migrateDisplayFormatsIfNeeded()
     }
 
@@ -118,21 +114,6 @@ final class ClockStore {
 
     private let defaults: UserDefaults
     private let languageStore: LanguageStore
-
-    private func seedLimaIfNeeded() {
-        guard !defaults.bool(forKey: Keys.didSeedLima) else { return }
-        defer { defaults.set(true, forKey: Keys.didSeedLima) }
-
-        guard !clocks.contains(where: { $0.timeZoneIdentifier == "America/Lima" }) else { return }
-        clocks.append(
-            ZoneClock(
-                timeZoneIdentifier: "America/Lima",
-                label: "利马",
-                displayFormat: defaultDisplayFormat
-            )
-        )
-        persist()
-    }
 
     private func migrateDisplayFormatsIfNeeded() {
         var didChange = false
