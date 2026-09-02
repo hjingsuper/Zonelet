@@ -54,6 +54,20 @@ struct ClockPresentationTests {
         #expect(title.components(separatedBy: "│").count == 2)
     }
 
+    @Test("Explains day differences with friendly Chinese words")
+    func localizedDayDifference() throws {
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-09-02T16:30:00Z"))
+        let lima = ZoneClock(timeZoneIdentifier: "America/Lima", label: "利马")
+        let title = ClockPresentation.menuTitle(
+            for: lima,
+            at: date,
+            language: .simplifiedChinese
+        )
+
+        #expect(title.contains("昨天"))
+        #expect(!title.contains(" -1"))
+    }
+
     @Test("Formats date and time with a custom pattern")
     func customDateAndTimeFormat() throws {
         let date = try #require(ISO8601DateFormatter().date(from: "2026-09-02T08:05:00Z"))
@@ -137,6 +151,18 @@ struct ClockPresentationTests {
             TimeZoneCatalog.cityName(for: "America/Lima", language: .simplifiedChinese) == "利马"
         )
         #expect(TimeZoneCatalog.cityName(for: "UTC") == "UTC")
+    }
+
+    @Test("Finds Pacific time by Chinese and common abbreviations")
+    func pacificTimeSearchAliases() throws {
+        let pacific = try #require(
+            TimeZoneCatalog.candidates(language: .simplifiedChinese)
+                .first { $0.id == "America/Los_Angeles" }
+        )
+
+        #expect(pacific.matches("太平洋标准时间"))
+        #expect(pacific.matches("PST"))
+        #expect(pacific.matches("PDT"))
     }
 
     @MainActor

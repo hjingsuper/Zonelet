@@ -15,11 +15,7 @@ struct AddZoneView: View {
         guard !query.isEmpty else { return Array(available.prefix(120)) }
 
         return Array(
-            available.filter {
-                $0.name.localizedCaseInsensitiveContains(query) ||
-                    $0.id.localizedCaseInsensitiveContains(query) ||
-                    $0.detail.localizedCaseInsensitiveContains(query)
-            }
+            available.filter { $0.matches(query) }
             .prefix(120)
         )
     }

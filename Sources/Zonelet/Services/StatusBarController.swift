@@ -57,7 +57,11 @@ final class StatusBarController: NSObject {
     private func updateStatusItem(at date: Date = .now) {
         guard let statusItem else { return }
         let visibleClocks = store.clocks.filter(\.isVisible)
-        statusItem.button?.title = ClockPresentation.statusTitle(for: visibleClocks, at: date)
+        statusItem.button?.title = ClockPresentation.statusTitle(
+            for: visibleClocks,
+            at: date,
+            language: languageStore.language
+        )
         statusItem.button?.toolTip = visibleClocks.isEmpty
             ? "Zonelet"
             : visibleClocks.map(\.timeZoneIdentifier).joined(separator: " · ")

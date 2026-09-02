@@ -4,6 +4,14 @@ struct TimeZoneCandidate: Identifiable, Hashable {
     let id: String
     let name: String
     let detail: String
+    let searchTerms: [String]
+
+    func matches(_ query: String) -> Bool {
+        name.localizedCaseInsensitiveContains(query) ||
+            id.localizedCaseInsensitiveContains(query) ||
+            detail.localizedCaseInsensitiveContains(query) ||
+            searchTerms.contains { $0.localizedCaseInsensitiveContains(query) }
+    }
 }
 
 enum TimeZoneCatalog {
@@ -15,7 +23,8 @@ enum TimeZoneCatalog {
             return TimeZoneCandidate(
                 id: identifier,
                 name: cityName(for: identifier, language: language),
-                detail: "\(identifier)  ·  \(gmtOffset(for: zone))"
+                detail: "\(identifier)  ·  \(gmtOffset(for: zone))",
+                searchTerms: searchAliases[identifier] ?? []
             )
         }
         .sorted {
@@ -53,6 +62,19 @@ enum TimeZoneCatalog {
         "Europe/Berlin": "柏林",
         "Europe/London": "伦敦",
         "Europe/Paris": "巴黎"
+    ]
+
+    private static let searchAliases: [String: [String]] = [
+        "America/Los_Angeles": [
+            "太平洋时间",
+            "太平洋标准时间",
+            "太平洋夏令时间",
+            "Pacific Time",
+            "Pacific Standard Time",
+            "Pacific Daylight Time",
+            "PST",
+            "PDT"
+        ]
     ]
 
     static func gmtOffset(for zone: TimeZone, at date: Date = .now) -> String {

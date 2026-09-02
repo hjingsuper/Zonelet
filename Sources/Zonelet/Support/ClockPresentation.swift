@@ -42,20 +42,12 @@ enum ClockPresentation {
     static func menuTitle(
         for clock: ZoneClock,
         at date: Date = .now,
+        language: AppLanguage = .english,
         maxLength: Int = 30
     ) -> String {
         let time = timeString(at: date, in: clock.timeZone, format: clock.effectiveDisplayFormat)
         let offset = dayOffset(at: date, to: clock.timeZone)
-        let dayMarker: String
-
-        switch offset {
-        case let value where value > 0:
-            dayMarker = " +\(value)"
-        case let value where value < 0:
-            dayMarker = " \(value)"
-        default:
-            dayMarker = ""
-        }
+        let dayMarker = dayMarker(for: offset, language: language)
 
         let title = "\(clock.label) \(time)\(dayMarker)"
         return title.count <= maxLength ? title : String(title.prefix(maxLength - 1)) + "…"
@@ -64,21 +56,41 @@ enum ClockPresentation {
     static func statusTitle(
         for clock: ZoneClock,
         at date: Date = .now,
+        language: AppLanguage = .english,
         isLast: Bool
     ) -> String {
-        let title = menuTitle(for: clock, at: date, maxLength: isLast ? 30 : 28)
+        let title = menuTitle(
+            for: clock,
+            at: date,
+            language: language,
+            maxLength: isLast ? 30 : 28
+        )
         return isLast ? title : "\(title)  │"
     }
 
     static func statusTitle(
         for clocks: [ZoneClock],
-        at date: Date = .now
+        at date: Date = .now,
+        language: AppLanguage = .english
     ) -> String {
         guard !clocks.isEmpty else { return "Zonelet" }
         let maxLength = clocks.count == 1 ? 30 : 28
         return clocks
-            .map { menuTitle(for: $0, at: date, maxLength: maxLength) }
+            .map { menuTitle(for: $0, at: date, language: language, maxLength: maxLength) }
             .joined(separator: "  │  ")
+    }
+
+    private static func dayMarker(for offset: Int, language: AppLanguage) -> String {
+        guard offset != 0 else { return "" }
+
+        return switch (language, offset) {
+        case (.simplifiedChinese, -1): " 昨天"
+        case (.simplifiedChinese, 1): " 明天"
+        case (.simplifiedChinese, let value): " \(value > 0 ? "+" : "")\(value)天"
+        case (.english, -1): " Yesterday"
+        case (.english, 1): " Tomorrow"
+        case (.english, let value): " \(value > 0 ? "+" : "")\(value)d"
+        }
     }
 
     private static func dayComponents(at date: Date, in timeZone: TimeZone) -> DateComponents {
