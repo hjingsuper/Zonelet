@@ -65,6 +65,8 @@ case "$MODE" in
   run)
     open_app
     ;;
+  --package|package)
+    ;;
   --debug|debug)
     lldb -- "$APP_BINARY"
     ;;
@@ -82,7 +84,7 @@ case "$MODE" in
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--package|--debug|--logs|--telemetry|--verify]" >&2
     exit 2
     ;;
 esac
