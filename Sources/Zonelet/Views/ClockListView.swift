@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct ClockListView: View {
     let store: ClockStore
     let languageStore: LanguageStore
