@@ -41,6 +41,7 @@ struct ClockRowView: View {
     let languageStore: LanguageStore
 
     @State private var isDropTargeted = false
+    @State private var showingCustomFormatEditor = false
 
     var body: some View {
         row(at: date)
@@ -62,6 +63,16 @@ struct ClockRowView: View {
             isDropTargeted = isTargeted
         }
         .animation(.easeOut(duration: 0.12), value: isDropTargeted)
+        .sheet(isPresented: $showingCustomFormatEditor) {
+            CustomDisplayFormatEditor(
+                initialConfiguration: clock.customDisplayFormat
+                    ?? CustomDisplayFormat.starting(from: clock.displayFormatPreset),
+                languageStore: languageStore,
+                previewTimeZone: clock.timeZone
+            ) { format in
+                store.setCustomDisplayFormat(id: clock.id, format)
+            }
+        }
     }
 
     private func row(at date: Date) -> some View {
@@ -162,19 +173,16 @@ struct ClockRowView: View {
 
     private var formatMenu: some View {
         Menu {
-            ForEach(DisplayFormatPreset.allCases) { preset in
-                Button {
-                    store.setDisplayFormat(id: clock.id, preset)
-                } label: {
-                    if clock.displayFormatPreset == preset {
-                        Label(formatOptionLabel(preset), systemImage: "checkmark")
-                    } else {
-                        Text(formatOptionLabel(preset))
-                    }
-                }
-            }
+            DisplayFormatMenuContent(
+                selectedPreset: clock.displayFormatPreset,
+                selectedCustomFormat: clock.customDisplayFormat,
+                languageStore: languageStore,
+                previewTimeZone: clock.timeZone,
+                selectPreset: { store.setDisplayFormat(id: clock.id, $0) },
+                customize: { showingCustomFormatEditor = true }
+            )
         } label: {
-            Text(clock.displayFormatPreset.title(language: languageStore.language))
+            Text(formatTitle)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -182,12 +190,8 @@ struct ClockRowView: View {
         .help(languageStore[.displayFormat])
     }
 
-    private func formatOptionLabel(_ preset: DisplayFormatPreset) -> String {
-        let preview = ClockPresentation.timeString(
-            in: clock.timeZone,
-            locale: languageStore.language.locale,
-            format: preset.pattern
-        )
-        return "\(preset.title(language: languageStore.language)) · \(preview)"
+    private var formatTitle: String {
+        clock.displayFormatPreset?.title(language: languageStore.language)
+            ?? languageStore[.customFormat]
     }
 }

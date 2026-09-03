@@ -9,10 +9,12 @@ final class ClockStore {
         static let clocks = "zonelet.clocks"
         static let corruptClocksBackup = "zonelet.clocks.corrupt-backup"
         static let legacyDisplayFormat = "zonelet.display-format"
+        static let defaultCustomDisplayFormat = "zonelet.custom-display-format"
     }
 
     private(set) var clocks: [ZoneClock] = []
     private(set) var defaultDisplayFormat: DisplayFormatPreset
+    private(set) var defaultCustomDisplayFormat: CustomDisplayFormat?
     private(set) var recoveredConfiguration = false
     var onChange: (() -> Void)?
 
@@ -20,6 +22,8 @@ final class ClockStore {
         self.defaults = defaults
         let savedPattern = defaults.string(forKey: Keys.legacyDisplayFormat)
         defaultDisplayFormat = DisplayFormatPreset.allCases.first { $0.pattern == savedPattern } ?? .time24
+        defaultCustomDisplayFormat = defaults.data(forKey: Keys.defaultCustomDisplayFormat)
+            .flatMap { try? JSONDecoder().decode(CustomDisplayFormat.self, from: $0) }
 
         if let data = defaults.data(forKey: Keys.clocks) {
             do {
@@ -34,13 +38,13 @@ final class ClockStore {
                     persist()
                 }
             } catch {
-                clocks = [Self.defaultClock(displayFormat: defaultDisplayFormat)]
+                clocks = [defaultClock()]
                 backUpAndReportRecovery(data)
                 logger.error("Clock configuration was unreadable and has been backed up: \(error.localizedDescription, privacy: .public)")
                 persist()
             }
         } else {
-            clocks = [Self.defaultClock(displayFormat: defaultDisplayFormat)]
+            clocks = [defaultClock()]
             persist()
         }
     }
@@ -48,12 +52,21 @@ final class ClockStore {
     func add(timeZoneIdentifier: String) {
         guard TimeZone(identifier: timeZoneIdentifier) != nil else { return }
         guard !clocks.contains(where: { $0.timeZoneIdentifier == timeZoneIdentifier }) else { return }
-        clocks.append(
-            ZoneClock(
-                timeZoneIdentifier: timeZoneIdentifier,
-                displayFormat: defaultDisplayFormat
+        if let defaultCustomDisplayFormat {
+            clocks.append(
+                ZoneClock(
+                    timeZoneIdentifier: timeZoneIdentifier,
+                    customDisplayFormat: defaultCustomDisplayFormat
+                )
             )
-        )
+        } else {
+            clocks.append(
+                ZoneClock(
+                    timeZoneIdentifier: timeZoneIdentifier,
+                    displayFormat: defaultDisplayFormat
+                )
+            )
+        }
         changed()
     }
 
@@ -71,22 +84,52 @@ final class ClockStore {
     func setDisplayFormat(id: UUID, _ preset: DisplayFormatPreset) {
         guard let index = clocks.firstIndex(where: { $0.id == id }) else { return }
         guard clocks[index].displayFormatPattern != preset.pattern else { return }
-        clocks[index].displayFormatPattern = preset.pattern
+        clocks[index].apply(displayFormat: preset)
+        changed()
+    }
+
+    func setCustomDisplayFormat(id: UUID, _ format: CustomDisplayFormat) {
+        guard let index = clocks.firstIndex(where: { $0.id == id }) else { return }
+        guard clocks[index].customDisplayFormat != format else { return }
+        clocks[index].apply(customDisplayFormat: format)
         changed()
     }
 
     func setDisplayFormatForAll(_ preset: DisplayFormatPreset) {
         defaultDisplayFormat = preset
+        defaultCustomDisplayFormat = nil
         defaults.set(preset.pattern, forKey: Keys.legacyDisplayFormat)
+        defaults.removeObject(forKey: Keys.defaultCustomDisplayFormat)
         for index in clocks.indices {
-            clocks[index].displayFormatPattern = preset.pattern
+            clocks[index].apply(displayFormat: preset)
+        }
+        changed()
+    }
+
+    func setCustomDisplayFormatForAll(_ format: CustomDisplayFormat) {
+        defaultCustomDisplayFormat = format
+        defaults.set(format.pattern, forKey: Keys.legacyDisplayFormat)
+        if let data = try? JSONEncoder().encode(format) {
+            defaults.set(data, forKey: Keys.defaultCustomDisplayFormat)
+        }
+        for index in clocks.indices {
+            clocks[index].apply(customDisplayFormat: format)
         }
         changed()
     }
 
     var uniformDisplayFormat: DisplayFormatPreset? {
-        guard let first = clocks.first?.displayFormatPreset else { return defaultDisplayFormat }
+        guard let firstClock = clocks.first else {
+            return defaultCustomDisplayFormat == nil ? defaultDisplayFormat : nil
+        }
+        guard let first = firstClock.displayFormatPreset else { return nil }
         return clocks.dropFirst().allSatisfy { $0.displayFormatPreset == first } ? first : nil
+    }
+
+    var uniformCustomDisplayFormat: CustomDisplayFormat? {
+        guard let firstClock = clocks.first else { return defaultCustomDisplayFormat }
+        guard let first = firstClock.customDisplayFormat else { return nil }
+        return clocks.dropFirst().allSatisfy { $0.customDisplayFormat == first } ? first : nil
     }
 
     func move(id: UUID, relativeTo targetID: UUID, insertAfter: Bool) {
@@ -116,8 +159,14 @@ final class ClockStore {
         category: "ClockStore"
     )
 
-    private static func defaultClock(displayFormat: DisplayFormatPreset) -> ZoneClock {
-        ZoneClock(timeZoneIdentifier: "UTC", displayFormat: displayFormat)
+    private func defaultClock() -> ZoneClock {
+        if let defaultCustomDisplayFormat {
+            return ZoneClock(
+                timeZoneIdentifier: "UTC",
+                customDisplayFormat: defaultCustomDisplayFormat
+            )
+        }
+        return ZoneClock(timeZoneIdentifier: "UTC", displayFormat: defaultDisplayFormat)
     }
 
     private static func containsLegacyLabels(in data: Data) -> Bool {
@@ -132,7 +181,6 @@ final class ClockStore {
         didRepair: Bool
     ) {
         var didRepair = false
-        let knownPatterns = Set(DisplayFormatPreset.allCases.map(\.pattern))
         var normalizedClocks: [ZoneClock] = []
         var seenClockIDs: Set<UUID> = []
         var seenTimeZones: Set<String> = []
@@ -149,15 +197,23 @@ final class ClockStore {
                 didRepair = true
                 continue
             }
-            if !knownPatterns.contains(clock.displayFormatPattern ?? "") {
-                clock.displayFormatPattern = defaultDisplayFormat.pattern
+            let validPreset = clock.customDisplayFormat == nil && clock.displayFormatPreset != nil
+            let validCustom = clock.customDisplayFormat.map {
+                $0.pattern == clock.displayFormatPattern
+            } ?? false
+            if !validPreset && !validCustom {
+                if let defaultCustomDisplayFormat {
+                    clock.apply(customDisplayFormat: defaultCustomDisplayFormat)
+                } else {
+                    clock.apply(displayFormat: defaultDisplayFormat)
+                }
                 didRepair = true
             }
             normalizedClocks.append(clock)
         }
 
         if !decodedClocks.isEmpty, normalizedClocks.isEmpty {
-            normalizedClocks = [Self.defaultClock(displayFormat: defaultDisplayFormat)]
+            normalizedClocks = [defaultClock()]
         }
         return (normalizedClocks, didRepair)
     }

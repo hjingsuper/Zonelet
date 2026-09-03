@@ -8,6 +8,7 @@ struct ClockListView: View {
     let updateManager: UpdateManager
 
     @State private var showingAddZone = false
+    @State private var showingUniformFormatEditor = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +36,16 @@ struct ClockListView: View {
         .onAppear { launchAtLoginManager.retryRegistration() }
         .sheet(isPresented: $showingAddZone) {
             AddZoneView(store: store, languageStore: languageStore)
+        }
+        .sheet(isPresented: $showingUniformFormatEditor) {
+            CustomDisplayFormatEditor(
+                initialConfiguration: store.uniformCustomDisplayFormat
+                    ?? CustomDisplayFormat.starting(from: store.uniformDisplayFormat),
+                languageStore: languageStore,
+                previewTimeZone: .current
+            ) { format in
+                store.setCustomDisplayFormatForAll(format)
+            }
         }
     }
 
@@ -110,32 +121,20 @@ struct ClockListView: View {
 
     private var uniformFormatMenu: some View {
         Menu {
-            ForEach(DisplayFormatPreset.allCases) { preset in
-                Button {
-                    store.setDisplayFormatForAll(preset)
-                } label: {
-                    if store.uniformDisplayFormat == preset {
-                        Label(formatOptionLabel(preset), systemImage: "checkmark")
-                    } else {
-                        Text(formatOptionLabel(preset))
-                    }
-                }
-            }
+            DisplayFormatMenuContent(
+                selectedPreset: store.uniformDisplayFormat,
+                selectedCustomFormat: store.uniformCustomDisplayFormat,
+                languageStore: languageStore,
+                previewTimeZone: .current,
+                selectPreset: { store.setDisplayFormatForAll($0) },
+                customize: { showingUniformFormatEditor = true }
+            )
         } label: {
             Text(languageStore[.formatColumn])
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help(languageStore[.uniformFormat])
-    }
-
-    private func formatOptionLabel(_ preset: DisplayFormatPreset) -> String {
-        let preview = ClockPresentation.timeString(
-            in: .current,
-            locale: languageStore.language.locale,
-            format: preset.pattern
-        )
-        return "\(preset.title(language: languageStore.language)) · \(preview)"
     }
 
     private var settingsFooter: some View {

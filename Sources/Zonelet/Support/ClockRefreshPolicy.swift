@@ -2,7 +2,7 @@ import Foundation
 
 enum ClockRefreshPolicy {
     static func interval(for clocks: [ZoneClock]) -> TimeInterval {
-        clocks.contains { $0.displayFormatPreset == .timeWithSeconds } ? 1 : 60
+        clocks.contains { $0.effectiveDisplayFormat.contains("s") } ? 1 : 60
     }
 
     static func alignedStart(at date: Date = .now, interval: TimeInterval) -> Date {

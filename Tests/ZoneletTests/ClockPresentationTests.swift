@@ -39,9 +39,16 @@ final class ClockPresentationTests: XCTestCase {
             timeZoneIdentifier: "UTC",
             displayFormat: .timeWithSeconds
         )
+        var customWithSeconds = CustomDisplayFormat.compactShort
+        customWithSeconds.showsSeconds = true
+        let customSeconds = ZoneClock(
+            timeZoneIdentifier: "UTC",
+            customDisplayFormat: customWithSeconds
+        )
 
         XCTAssertEqual(ClockRefreshPolicy.interval(for: [normal]), 60)
         XCTAssertEqual(ClockRefreshPolicy.interval(for: [normal, seconds]), 1)
+        XCTAssertEqual(ClockRefreshPolicy.interval(for: [customSeconds]), 1)
         XCTAssertEqual(
             ClockRefreshPolicy.alignedStart(at: date, interval: 60).timeIntervalSince1970,
             floor(date.timeIntervalSince1970 / 60) * 60
@@ -121,6 +128,21 @@ final class ClockPresentationTests: XCTestCase {
         XCTAssertEqual(value, "2026-09-02 08:05 周三")
     }
 
+    func testCompactShortDateTimeUsesUnpaddedNumbersAndNarrowWeekday() throws {
+        let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-06T21:03:00Z"))
+        let shanghai = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let value = ClockPresentation.timeString(
+            at: date,
+            in: shanghai,
+            locale: Locale(identifier: "zh-Hans"),
+            format: DisplayFormatPreset.compactShortDateTime.pattern
+        )
+
+        XCTAssertEqual(DisplayFormatPreset.compactShortDateTime.pattern, "yy-M-d H:m EEEEE")
+        XCTAssertEqual(value, "26-9-7 5:3 一")
+        XCTAssertEqual(CustomDisplayFormat.compactShort.pattern, "yy-M-d H:m EEEEE")
+    }
+
     @MainActor
     func testDisplayFormatPersistence() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "ZoneletTests.Format.\(UUID())"))
@@ -152,6 +174,28 @@ final class ClockPresentationTests: XCTestCase {
         let first = try XCTUnwrap(store.clocks.first)
         store.setDisplayFormat(id: first.id, .timeWithSeconds)
         XCTAssertNil(store.uniformDisplayFormat)
+    }
+
+    @MainActor
+    func testCustomDisplayFormatPersistsAndCanBeAppliedToAllClocks() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "ZoneletTests.CustomFormat.\(UUID())"))
+        let store = ClockStore(defaults: defaults)
+        store.add(timeZoneIdentifier: "Asia/Shanghai")
+
+        store.setCustomDisplayFormatForAll(.compactShort)
+        XCTAssertEqual(store.uniformCustomDisplayFormat, .compactShort)
+        XCTAssertTrue(store.clocks.allSatisfy {
+            $0.effectiveDisplayFormat == "yy-M-d H:m EEEEE"
+        })
+
+        store.add(timeZoneIdentifier: "America/Lima")
+        XCTAssertEqual(store.clocks.last?.customDisplayFormat, .compactShort)
+
+        let reloaded = ClockStore(defaults: defaults)
+        XCTAssertEqual(reloaded.uniformCustomDisplayFormat, .compactShort)
+        XCTAssertTrue(reloaded.clocks.allSatisfy {
+            $0.customDisplayFormat == .compactShort
+        })
     }
 
     @MainActor

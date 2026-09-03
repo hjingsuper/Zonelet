@@ -31,7 +31,7 @@
 ---
 
 <p align="center">
-  <img src="docs/zonelet-live.png" width="1100" alt="Zonelet v1.17 真实运行界面">
+  <img src="docs/zonelet-live.png" width="1100" alt="Zonelet 真实运行界面">
 </p>
 
 ## 简体中文
@@ -43,7 +43,8 @@ Zonelet 是一款专注于菜单栏地区时间显示的 macOS 小工具。它�
 - 在菜单栏同时显示多个地区时间，并自动添加简洁分隔符
 - 默认仅添加 UTC，其他地区由用户自行选择
 - 显示地区相对本机与 UTC 的精简时差
-- 每个地区可独立设置 24 小时、12 小时、日期、星期和秒数格式
+- 每个地区可独立选择常用预设，或可视化组合年份、月日、分隔符、补零、星期与秒钟
+- 支持 `26-9-7 5:3 一` 这样的极简短日期格式，并实时预览菜单栏长度
 - 支持统一设置全部地区格式，之后仍可逐项调整
 - 拖动手柄自由排序，悬停时显示四向移动光标
 - 默认简体中文，可切换 English
@@ -86,7 +87,7 @@ ZONELET_CONFIGURATION=release ZONELET_DISTRIBUTION_BUILD=1 ./script/build_and_ru
 
 ### 发布机制
 
-版本号和构建号由根目录的 `VERSION` 与 `BUILD_NUMBER` 管理。推送与版本号一致的 `v*` 标签后，GitHub Actions 会自动执行测试、构建 Apple Silicon DMG、生成 SHA-256 校验文件、生成 Sparkle `appcast.xml` 并创建公开 Release。
+版本号和构建号由根目录的 `VERSION` 与 `BUILD_NUMBER` 管理。推送 `main` 后，GitHub Actions 会按 `VERSION` 自动创建版本标签，执行测试、构建 Apple Silicon DMG、生成 SHA-256 校验文件与 Sparkle `appcast.xml`，然后创建公开 Release。已存在的版本会跳过重复发布。
 
 项目始终使用临时签名，不进行 Apple 公证。Sparkle 更新包通过独立的 EdDSA 签名验证。
 
@@ -99,7 +100,8 @@ Zonelet is a small, focused macOS menu bar app for checking time across regions 
 - Show multiple regional times in one compact menu bar item
 - Start with UTC only and add the locations you need
 - See compact offsets from both local time and UTC
-- Choose a date and time format independently for every location
+- Choose a preset or visually compose date, padding, separators, weekday, and seconds for every location
+- Use compact formats such as `26-9-7 5:3 M`, with a live menu bar length preview
 - Apply one format globally, then fine-tune individual rows
 - Drag to reorder with a clear four-way move cursor
 - Simplified Chinese by default, with English available

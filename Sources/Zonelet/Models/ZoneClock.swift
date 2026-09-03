@@ -5,6 +5,7 @@ struct ZoneClock: Codable, Identifiable, Equatable {
     let timeZoneIdentifier: String
     var isVisible: Bool
     var displayFormatPattern: String?
+    var customDisplayFormat: CustomDisplayFormat?
 
     init(
         id: UUID = UUID(),
@@ -16,6 +17,20 @@ struct ZoneClock: Codable, Identifiable, Equatable {
         self.timeZoneIdentifier = timeZoneIdentifier
         self.isVisible = isVisible
         displayFormatPattern = displayFormat.pattern
+        customDisplayFormat = nil
+    }
+
+    init(
+        id: UUID = UUID(),
+        timeZoneIdentifier: String,
+        isVisible: Bool = true,
+        customDisplayFormat: CustomDisplayFormat
+    ) {
+        self.id = id
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.isVisible = isVisible
+        displayFormatPattern = customDisplayFormat.pattern
+        self.customDisplayFormat = customDisplayFormat
     }
 
     var timeZone: TimeZone {
@@ -25,16 +40,24 @@ struct ZoneClock: Codable, Identifiable, Equatable {
         return timeZone
     }
 
-    var displayFormatPreset: DisplayFormatPreset {
-        guard let preset = DisplayFormatPreset.allCases.first(where: {
+    var displayFormatPreset: DisplayFormatPreset? {
+        guard customDisplayFormat == nil else { return nil }
+        return DisplayFormatPreset.allCases.first(where: {
             $0.pattern == displayFormatPattern
-        }) else {
-            preconditionFailure("ClockStore must normalize unknown display formats before use")
-        }
-        return preset
+        })
     }
 
     var effectiveDisplayFormat: String {
-        displayFormatPreset.pattern
+        customDisplayFormat?.pattern ?? displayFormatPreset?.pattern ?? DisplayFormatPreset.time24.pattern
+    }
+
+    mutating func apply(displayFormat preset: DisplayFormatPreset) {
+        displayFormatPattern = preset.pattern
+        customDisplayFormat = nil
+    }
+
+    mutating func apply(customDisplayFormat format: CustomDisplayFormat) {
+        displayFormatPattern = format.pattern
+        customDisplayFormat = format
     }
 }

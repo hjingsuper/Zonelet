@@ -7,6 +7,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
     case monthDayTime
     case localizedDateTime
     case weekdayTime
+    case compactShortDateTime
     case fullDateTime
     case fullDateTimeWithWeekday
     case iso8601
@@ -21,6 +22,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
         case .monthDayTime: "MM-dd HH:mm"
         case .localizedDateTime: "MMM d HH:mm"
         case .weekdayTime: "EEE HH:mm"
+        case .compactShortDateTime: "yy-M-d H:m EEEEE"
         case .fullDateTime: "yyyy-MM-dd HH:mm"
         case .fullDateTimeWithWeekday: "yyyy-MM-dd HH:mm EEE"
         case .iso8601: "yyyy-MM-dd'T'HH:mm"
@@ -35,6 +37,7 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
         case (.simplifiedChinese, .monthDayTime): "月日 + 时间"
         case (.simplifiedChinese, .localizedDateTime): "本地日期 + 时间"
         case (.simplifiedChinese, .weekdayTime): "星期 + 时间"
+        case (.simplifiedChinese, .compactShortDateTime): "极简日期 + 时间 + 星期"
         case (.simplifiedChinese, .fullDateTime): "完整日期 + 时间"
         case (.simplifiedChinese, .fullDateTimeWithWeekday): "日期时间 + 星期"
         case (.simplifiedChinese, .iso8601): "ISO 日期 + 时间"
@@ -45,9 +48,26 @@ enum DisplayFormatPreset: String, CaseIterable, Identifiable {
         case (.english, .monthDayTime): "Month/Day + Time"
         case (.english, .localizedDateTime): "Local Date + Time"
         case (.english, .weekdayTime): "Weekday + Time"
+        case (.english, .compactShortDateTime): "Compact Date, Time + Weekday"
         case (.english, .fullDateTime): "Full Date + Time"
         case (.english, .fullDateTimeWithWeekday): "Date, Time + Weekday"
         case (.english, .iso8601): "ISO Date + Time"
         }
     }
+
+    static let timeOnly: [DisplayFormatPreset] = [
+        .time24,
+        .timeWithSeconds,
+        .time12,
+        .weekdayTime,
+    ]
+
+    static let dateAndTime: [DisplayFormatPreset] = [
+        .monthDayTime,
+        .localizedDateTime,
+        .compactShortDateTime,
+        .fullDateTime,
+        .fullDateTimeWithWeekday,
+        .iso8601,
+    ]
 }
