@@ -10,103 +10,86 @@ on:
 jobs:
   build:
     runs-on: macos-15
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      should_release: ${{ steps.release_check.outputs.should_release }}
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Resolve build version
+        id: version
         shell: bash
         run: |
-          VERSION="1.15"
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          BUILD_NUMBER="$(tr -d '[:space:]' < BUILD_NUMBER)"
+          if [[ ! "$VERSION" =~ ^[0-9]+([.][0-9]+){1,2}$ ]]; then
+            echo "Invalid VERSION: $VERSION" >&2
+            exit 1
+          fi
+          if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Invalid BUILD_NUMBER: $BUILD_NUMBER" >&2
+            exit 1
+          fi
+          RELEASE_TAG="v$VERSION"
+          DISTRIBUTION_BUILD=0
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            DISTRIBUTION_BUILD=1
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+              echo "Tag $GITHUB_REF_NAME does not match VERSION ($VERSION)." >&2
+              exit 1
+            fi
+            DISTRIBUTION_BUILD=1
           fi
           echo "ZONELET_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "ZONELET_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
-      - name: Test
-        run: swift test
-      - name: Detect optional notarization credentials
+          echo "ZONELET_BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "ZONELET_DISTRIBUTION_BUILD=$DISTRIBUTION_BUILD" >> "$GITHUB_ENV"
+          echo "ZONELET_RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Validate release prerequisites
+        id: release_check
         env:
-          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: |
-          if [[ -n "$MACOS_CERTIFICATE_BASE64" \
-             && -n "$MACOS_CERTIFICATE_PASSWORD" \
-             && -n "$APPLE_ID" \
-             && -n "$APPLE_TEAM_ID" \
-             && -n "$APPLE_APP_PASSWORD" ]]; then
-            echo "ZONELET_CAN_NOTARIZE=1" >> "$GITHUB_ENV"
-          else
-            echo "ZONELET_CAN_NOTARIZE=0" >> "$GITHUB_ENV"
-            echo "Apple credentials are not configured; publishing an ad-hoc signed build."
-          fi
-      - name: Import stable signing certificate
-        env:
-          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          ZONELET_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ZONELET_SIGNING_CERTIFICATE_V2_BASE64 }}
-          ZONELET_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.ZONELET_SIGNING_CERTIFICATE_PASSWORD }}
-        run: |
-          if [[ -n "$MACOS_CERTIFICATE_BASE64" ]]; then
-            CERTIFICATE_BASE64="$MACOS_CERTIFICATE_BASE64"
-            CERTIFICATE_PASSWORD="$MACOS_CERTIFICATE_PASSWORD"
-            SIGNING_TIMESTAMP=1
-            DISABLE_LIBRARY_VALIDATION=0
-          elif [[ -n "$ZONELET_SIGNING_CERTIFICATE_BASE64" ]]; then
-            CERTIFICATE_BASE64="$ZONELET_SIGNING_CERTIFICATE_BASE64"
-            CERTIFICATE_PASSWORD="$ZONELET_SIGNING_CERTIFICATE_PASSWORD"
-            SIGNING_TIMESTAMP=0
-            DISABLE_LIBRARY_VALIDATION=1
-          else
-            echo "No stable certificate configured; using an ad-hoc signature."
+          if [[ "$ZONELET_DISTRIBUTION_BUILD" != "1" ]]; then
+            echo "ZONELET_CAN_SIGN_UPDATES=0" >> "$GITHUB_ENV"
+            echo "ZONELET_SHOULD_RELEASE=0" >> "$GITHUB_ENV"
+            echo "should_release=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          CERTIFICATE_PATH="$RUNNER_TEMP/zonelet-signing.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/zonelet-signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
-
-          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" \
-            -P "$CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-          security set-key-partition-list \
-            -S apple-tool:,apple: \
-            -s \
-            -k "$KEYCHAIN_PASSWORD" \
-            "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-
-          if [[ "$SIGNING_TIMESTAMP" == "0" ]]; then
-            CERTIFICATE_PEM="$RUNNER_TEMP/zonelet-signing.pem"
-            CERTIFICATE_PASSWORD="$CERTIFICATE_PASSWORD" openssl pkcs12 \
-              -in "$CERTIFICATE_PATH" \
-              -clcerts \
-              -nokeys \
-              -passin env:CERTIFICATE_PASSWORD \
-              -out "$CERTIFICATE_PEM"
-            sudo security add-trusted-cert \
-              -d \
-              -r trustRoot \
-              -p codeSign \
-              -k /Library/Keychains/System.keychain \
-              "$CERTIFICATE_PEM"
+          if gh release view "$ZONELET_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $ZONELET_RELEASE_TAG already exists; skipping duplicate publication."
+            echo "ZONELET_CAN_SIGN_UPDATES=0" >> "$GITHUB_ENV"
+            echo "ZONELET_SHOULD_RELEASE=0" >> "$GITHUB_ENV"
+            echo "should_release=0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-
-          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | sed -n 's/.*"\(.*\)"/\1/p' | head -n 1)"
-          test -n "$SIGNING_IDENTITY"
-          echo "ZONELET_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
-          echo "ZONELET_SIGNING_TIMESTAMP=$SIGNING_TIMESTAMP" >> "$GITHUB_ENV"
-          echo "ZONELET_DISABLE_LIBRARY_VALIDATION=$DISABLE_LIBRARY_VALIDATION" >> "$GITHUB_ENV"
+          if [[ -z "$SPARKLE_ED_PRIVATE_KEY" ]]; then
+            echo "SPARKLE_ED_PRIVATE_KEY is required for a public release." >&2
+            exit 1
+          fi
+          if gh release view --repo "$GITHUB_REPOSITORY" --json tagName >/dev/null 2>&1; then
+            LATEST_APPCAST_URL="https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml"
+            LATEST_APPCAST="$(curl --fail --silent --show-error --location --retry 3 "$LATEST_APPCAST_URL")"
+            LATEST_BUILD="$(python3 -c 'import sys, xml.etree.ElementTree as ET; root = ET.fromstring(sys.stdin.read()); print(next(((node.text or "").strip() for node in root.iter() if node.tag.rsplit("}", 1)[-1] == "version"), ""))' <<< "$LATEST_APPCAST")"
+            if [[ ! "$LATEST_BUILD" =~ ^[1-9][0-9]*$ ]]; then
+              echo "The published appcast does not contain a valid Sparkle build number." >&2
+              exit 1
+            fi
+            if [[ "$ZONELET_BUILD_NUMBER" -le "$LATEST_BUILD" ]]; then
+              echo "BUILD_NUMBER must be greater than the published build ($LATEST_BUILD)." >&2
+              exit 1
+            fi
+          fi
+          echo "ZONELET_CAN_SIGN_UPDATES=1" >> "$GITHUB_ENV"
+          echo "ZONELET_SHOULD_RELEASE=1" >> "$GITHUB_ENV"
+          echo "should_release=1" >> "$GITHUB_OUTPUT"
+      - name: Test
+        run: swift test
       - name: Build app bundle
         run: ZONELET_CONFIGURATION=release ./script/build_and_run.sh --package
       - name: Verify Apple Silicon build
@@ -118,69 +101,20 @@ jobs:
           sleep 3
           pgrep -x Zonelet
           pkill -x Zonelet
-      - name: Notarize and staple app
-        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_NOTARIZE == '1'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          ditto -c -k --keepParent dist/Zonelet.app "$RUNNER_TEMP/Zonelet.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/Zonelet.zip" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --wait
-          xcrun stapler staple dist/Zonelet.app
-          xcrun stapler validate dist/Zonelet.app
       - name: Set up Python for DMG packaging
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Create DMG
         run: |
-          python3 -m pip install --disable-pip-version-check dmgbuild==1.6.7
+          python3 -m pip install --disable-pip-version-check dmgbuild==1.6.5
           bash ./script/package_dmg.sh dist/Zonelet.app Zonelet-Apple-Silicon.dmg
-          if [[ -n "${ZONELET_SIGNING_IDENTITY:-}" ]]; then
-            DMG_SIGNING_ARGS=(--force)
-            if [[ "${ZONELET_SIGNING_TIMESTAMP:-1}" == "1" ]]; then
-              DMG_SIGNING_ARGS+=(--timestamp)
-            fi
-            codesign "${DMG_SIGNING_ARGS[@]}" \
-              --sign "$ZONELET_SIGNING_IDENTITY" \
-              Zonelet-Apple-Silicon.dmg
-          fi
-      - name: Notarize and staple DMG
-        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_NOTARIZE == '1'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          xcrun notarytool submit Zonelet-Apple-Silicon.dmg \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --wait
-          xcrun stapler staple Zonelet-Apple-Silicon.dmg
-          xcrun stapler validate Zonelet-Apple-Silicon.dmg
-          spctl -a -t open --context context:primary-signature -vv Zonelet-Apple-Silicon.dmg
       - name: Verify DMG and create checksum
         run: |
           hdiutil verify Zonelet-Apple-Silicon.dmg
           shasum -a 256 Zonelet-Apple-Silicon.dmg > Zonelet-Apple-Silicon.dmg.sha256
-      - name: Detect Sparkle signing key
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-        run: |
-          if [[ -n "$SPARKLE_ED_PRIVATE_KEY" ]]; then
-            echo "ZONELET_CAN_SIGN_UPDATES=1" >> "$GITHUB_ENV"
-          else
-            echo "ZONELET_CAN_SIGN_UPDATES=0" >> "$GITHUB_ENV"
-          fi
       - name: Generate signed Sparkle appcast
-        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_SIGN_UPDATES == '1'
+        if: env.ZONELET_SHOULD_RELEASE == '1' && env.ZONELET_CAN_SIGN_UPDATES == '1'
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: |
@@ -190,13 +124,10 @@ jobs:
           printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | \
             .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
               --ed-key-file - \
-              --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
+              --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$ZONELET_RELEASE_TAG/" \
               --link "https://hjingsuper.github.io/Zonelet/" \
               -o "$GITHUB_WORKSPACE/appcast.xml" \
               "$APPCAST_DIR"
-      - name: Explain unavailable automatic updates
-        if: startsWith(github.ref, 'refs/tags/v') && env.ZONELET_CAN_SIGN_UPDATES != '1'
-        run: echo "SPARKLE_ED_PRIVATE_KEY is not configured; this release will not update the appcast."
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -208,12 +139,14 @@ jobs:
           retention-days: 14
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.should_release == '1'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
       - name: Download packaged app
         uses: actions/download-artifact@v5
         with:
@@ -224,21 +157,19 @@ jobs:
           ASSETS=(
             release/Zonelet-Apple-Silicon.dmg
             release/Zonelet-Apple-Silicon.dmg.sha256
+            release/appcast.xml
           )
-          if [[ -f release/appcast.xml ]]; then
-            ASSETS+=(release/appcast.xml)
+          test -f release/appcast.xml
+          RELEASE_TAG="${{ needs.build.outputs.release_tag }}"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; published releases are immutable." >&2
+            exit 1
           fi
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" \
-              "${ASSETS[@]}" \
-              --repo "$GITHUB_REPOSITORY" \
-              --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" \
-              "${ASSETS[@]}" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Zonelet $GITHUB_REF_NAME" \
-              --generate-notes
-          fi
+          gh release create "$RELEASE_TAG" \
+            "${ASSETS[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Zonelet $RELEASE_TAG" \
+            --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

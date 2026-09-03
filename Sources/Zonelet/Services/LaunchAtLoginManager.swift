@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 import ServiceManagement
 
 enum LaunchAtLoginStatus {
@@ -45,10 +46,6 @@ final class LaunchAtLoginManager {
         applyRequestedState()
     }
 
-    func refresh() {
-        updateStatus()
-    }
-
     func retryRegistration() {
         if isEnabled {
             applyRequestedState()
@@ -58,10 +55,18 @@ final class LaunchAtLoginManager {
     }
 
     private let defaults: UserDefaults
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.ZoneletApp",
+        category: "LaunchAtLogin"
+    )
 
     private func applyRequestedState() {
         do {
             if isEnabled {
+                guard isInstalledInApplications else {
+                    status = .unavailable
+                    return
+                }
                 switch SMAppService.mainApp.status {
                 case .notRegistered, .notFound:
                     try SMAppService.mainApp.register()
@@ -70,12 +75,20 @@ final class LaunchAtLoginManager {
                 @unknown default:
                     break
                 }
-            } else if SMAppService.mainApp.status != .notRegistered {
-                try SMAppService.mainApp.unregister()
+            } else {
+                switch SMAppService.mainApp.status {
+                case .enabled, .requiresApproval:
+                    try SMAppService.mainApp.unregister()
+                case .notRegistered, .notFound:
+                    break
+                @unknown default:
+                    break
+                }
             }
             updateStatus()
         } catch {
             status = .failed
+            logger.error("Failed to update login item registration: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -88,9 +101,20 @@ final class LaunchAtLoginManager {
         case .notRegistered:
             status = isEnabled ? .failed : .disabled
         case .notFound:
-            status = .unavailable
+            status = isEnabled ? .unavailable : .disabled
         @unknown default:
             status = .unavailable
+        }
+    }
+
+    private var isInstalledInApplications: Bool {
+        let appPath = Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let systemApplications = URL(fileURLWithPath: "/Applications", isDirectory: true).path
+        let userApplications = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications", isDirectory: true)
+            .path
+        return [systemApplications, userApplications].contains { root in
+            appPath == root || appPath.hasPrefix(root + "/")
         }
     }
 }

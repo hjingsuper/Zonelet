@@ -3,18 +3,18 @@ set -euo pipefail
 
 MODE="${1:-run}"
 APP_NAME="Zonelet"
-BUNDLE_ID="${ZONELET_BUNDLE_ID:-com.hjingsuper.Zonelet}"
+BUNDLE_ID="${ZONELET_BUNDLE_ID:-com.hjingsuper.ZoneletApp}"
 MIN_SYSTEM_VERSION="14.0"
 BUILD_CONFIGURATION="${ZONELET_CONFIGURATION:-debug}"
-SIGNING_IDENTITY="${ZONELET_SIGNING_IDENTITY:--}"
-SIGNING_TIMESTAMP="${ZONELET_SIGNING_TIMESTAMP:-1}"
-DISABLE_LIBRARY_VALIDATION="${ZONELET_DISABLE_LIBRARY_VALIDATION:-0}"
-APP_VERSION="${ZONELET_VERSION:-1.15}"
-APP_BUILD="${ZONELET_BUILD_NUMBER:-35}"
+DISTRIBUTION_BUILD="${ZONELET_DISTRIBUTION_BUILD:-0}"
 SPARKLE_PUBLIC_KEY="i9H5HUPmZ02/s3+M+a7SIPYxvZgEHFEkHOcTtoQtIK0="
 SPARKLE_FEED_URL="https://github.com/hjingsuper/Zonelet/releases/latest/download/appcast.xml"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEFAULT_APP_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
+DEFAULT_APP_BUILD="$(tr -d '[:space:]' < "$ROOT_DIR/BUILD_NUMBER")"
+APP_VERSION="${ZONELET_VERSION:-$DEFAULT_APP_VERSION}"
+APP_BUILD="${ZONELET_BUILD_NUMBER:-$DEFAULT_APP_BUILD}"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
@@ -25,8 +25,33 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 APP_ICON="$ROOT_DIR/Assets/AppIcon.icns"
 
+if [[ ! "$APP_VERSION" =~ ^[0-9]+([.][0-9]+){1,2}$ ]]; then
+  echo "invalid Zonelet version: $APP_VERSION" >&2
+  exit 2
+fi
+if [[ ! "$APP_BUILD" =~ ^[1-9][0-9]*$ ]]; then
+  echo "invalid Zonelet build number: $APP_BUILD" >&2
+  exit 2
+fi
+if [[ "$DISTRIBUTION_BUILD" != "0" && "$DISTRIBUTION_BUILD" != "1" ]]; then
+  echo "ZONELET_DISTRIBUTION_BUILD must be 0 or 1" >&2
+  exit 2
+fi
+
+DISTRIBUTION_BUILD_PLIST="<false/>"
+if [[ "$DISTRIBUTION_BUILD" == "1" ]]; then
+  DISTRIBUTION_BUILD_PLIST="<true/>"
+fi
+
 cd "$ROOT_DIR"
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+if [[ "$MODE" == "run" ]]; then
+  while IFS= read -r app_pid; do
+    app_command="$(ps -p "$app_pid" -o command= 2>/dev/null || true)"
+    if [[ "$app_command" == "$APP_BINARY" || "$app_command" == "$APP_BINARY "* ]]; then
+      kill "$app_pid" >/dev/null 2>&1 || true
+    fi
+  done < <(pgrep -x "$APP_NAME" || true)
+fi
 
 swift build -c "$BUILD_CONFIGURATION"
 BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
@@ -38,6 +63,18 @@ mkdir -p "$APP_MACOS" "$APP_FRAMEWORKS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 ditto "$SPARKLE_FRAMEWORK" "$APP_FRAMEWORKS/Sparkle.framework"
 cp "$APP_ICON" "$APP_RESOURCES/AppIcon.icns"
+cp "$ROOT_DIR/LICENSE" "$APP_RESOURCES/Zonelet-LICENSE.txt"
+cp "$ROOT_DIR/.build/checkouts/Sparkle/LICENSE" "$APP_RESOURCES/Sparkle-LICENSE.txt"
+mkdir -p "$APP_RESOURCES/zh_CN.lproj" "$APP_RESOURCES/zh-Hans.lproj" "$APP_RESOURCES/en.lproj"
+cat >"$APP_RESOURCES/zh_CN.lproj/InfoPlist.strings" <<'STRINGS'
+"CFBundleDisplayName" = "Zonelet";
+"CFBundleName" = "Zonelet";
+STRINGS
+cp "$APP_RESOURCES/zh_CN.lproj/InfoPlist.strings" "$APP_RESOURCES/zh-Hans.lproj/InfoPlist.strings"
+cat >"$APP_RESOURCES/en.lproj/InfoPlist.strings" <<'STRINGS'
+"CFBundleDisplayName" = "Zonelet";
+"CFBundleName" = "Zonelet";
+STRINGS
 chmod +x "$APP_BINARY"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY"
 
@@ -52,6 +89,16 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>zh_CN</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>zh-Hans</string>
+    <string>zh_CN</string>
+    <string>en</string>
+  </array>
+  <key>CFBundleAllowMixedLocalizations</key>
+  <true/>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundlePackageType</key>
@@ -62,8 +109,12 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_BUILD</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
   <key>LSUIElement</key>
   <true/>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © 2026 hjingsuper</string>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSPrincipalClass</key>
@@ -78,50 +129,15 @@ cat >"$INFO_PLIST" <<PLIST
   <true/>
   <key>SUScheduledCheckInterval</key>
   <integer>21600</integer>
+  <key>ZoneletDistributionBuild</key>
+  $DISTRIBUTION_BUILD_PLIST
 </dict>
 </plist>
 PLIST
 
-if [[ "$SIGNING_IDENTITY" == "-" ]]; then
-  codesign --force --sign - "$APP_BUNDLE" >/dev/null
-else
-  SIGNING_ARGS=(--force --options runtime)
-  if [[ "$SIGNING_TIMESTAMP" == "1" ]]; then
-    SIGNING_ARGS+=(--timestamp)
-  fi
-  SPARKLE_PATH="$APP_FRAMEWORKS/Sparkle.framework/Versions/B"
-  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
-    "$SPARKLE_PATH/XPCServices/Installer.xpc"
-  codesign "${SIGNING_ARGS[@]}" --preserve-metadata=entitlements \
-    --sign "$SIGNING_IDENTITY" "$SPARKLE_PATH/XPCServices/Downloader.xpc"
-  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
-    "$SPARKLE_PATH/Autoupdate"
-  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
-    "$SPARKLE_PATH/Updater.app"
-  codesign "${SIGNING_ARGS[@]}" --sign "$SIGNING_IDENTITY" \
-    "$APP_FRAMEWORKS/Sparkle.framework"
-  if [[ "$DISABLE_LIBRARY_VALIDATION" == "1" ]]; then
-    APP_ENTITLEMENTS="$DIST_DIR/$APP_NAME.entitlements"
-    cat >"$APP_ENTITLEMENTS" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>com.apple.security.cs.disable-library-validation</key>
-  <true/>
-</dict>
-</plist>
-PLIST
-    codesign "${SIGNING_ARGS[@]}" \
-      --entitlements "$APP_ENTITLEMENTS" \
-      --sign "$SIGNING_IDENTITY" \
-      "$APP_BUNDLE"
-  else
-    codesign "${SIGNING_ARGS[@]}" \
-      --sign "$SIGNING_IDENTITY" \
-      "$APP_BUNDLE"
-  fi
-fi
+# Zonelet intentionally ships without an Apple Developer certificate.
+# Sparkle still verifies downloaded updates with its separate EdDSA signature.
+codesign --force --sign - "$APP_BUNDLE" >/dev/null
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"

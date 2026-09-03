@@ -1,48 +1,56 @@
 import Foundation
 import Observation
+import OSLog
 
 @MainActor
 @Observable
 final class ClockStore {
     private enum Keys {
         static let clocks = "zonelet.clocks"
+        static let corruptClocksBackup = "zonelet.clocks.corrupt-backup"
         static let legacyDisplayFormat = "zonelet.display-format"
     }
 
     private(set) var clocks: [ZoneClock] = []
     private(set) var defaultDisplayFormat: DisplayFormatPreset
+    private(set) var recoveredConfiguration = false
     var onChange: (() -> Void)?
 
-    init(defaults: UserDefaults = .standard, languageStore: LanguageStore? = nil) {
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.languageStore = languageStore ?? LanguageStore(defaults: defaults)
         let savedPattern = defaults.string(forKey: Keys.legacyDisplayFormat)
         defaultDisplayFormat = DisplayFormatPreset.allCases.first { $0.pattern == savedPattern } ?? .time24
 
-        if
-            let data = defaults.data(forKey: Keys.clocks),
-            let saved = try? JSONDecoder().decode([ZoneClock].self, from: data)
-        {
-            clocks = saved
+        if let data = defaults.data(forKey: Keys.clocks) {
+            do {
+                let decodedClocks = try JSONDecoder().decode([ZoneClock].self, from: data)
+                let normalized = normalize(decodedClocks)
+                let containsLegacyLabels = Self.containsLegacyLabels(in: data)
+                clocks = normalized.clocks
+                if normalized.didRepair {
+                    backUpAndReportRecovery(data)
+                }
+                if normalized.didRepair || containsLegacyLabels {
+                    persist()
+                }
+            } catch {
+                clocks = [Self.defaultClock(displayFormat: defaultDisplayFormat)]
+                backUpAndReportRecovery(data)
+                logger.error("Clock configuration was unreadable and has been backed up: \(error.localizedDescription, privacy: .public)")
+                persist()
+            }
         } else {
-            clocks = [
-                ZoneClock(timeZoneIdentifier: "UTC", label: "UTC", displayFormat: defaultDisplayFormat)
-            ]
+            clocks = [Self.defaultClock(displayFormat: defaultDisplayFormat)]
             persist()
         }
-
-        migrateDisplayFormatsIfNeeded()
     }
 
     func add(timeZoneIdentifier: String) {
+        guard TimeZone(identifier: timeZoneIdentifier) != nil else { return }
         guard !clocks.contains(where: { $0.timeZoneIdentifier == timeZoneIdentifier }) else { return }
         clocks.append(
             ZoneClock(
                 timeZoneIdentifier: timeZoneIdentifier,
-                label: TimeZoneCatalog.cityName(
-                    for: timeZoneIdentifier,
-                    language: languageStore.language
-                ),
                 displayFormat: defaultDisplayFormat
             )
         )
@@ -51,18 +59,6 @@ final class ClockStore {
 
     func remove(id: UUID) {
         clocks.removeAll { $0.id == id }
-        changed()
-    }
-
-    func rename(id: UUID, to label: String) {
-        guard let index = clocks.firstIndex(where: { $0.id == id }) else { return }
-        let trimmed = String(label.prefix(18)).trimmingCharacters(in: .whitespacesAndNewlines)
-        clocks[index].label = trimmed.isEmpty
-            ? TimeZoneCatalog.cityName(
-                for: clocks[index].timeZoneIdentifier,
-                language: languageStore.language
-            )
-            : trimmed
         changed()
     }
 
@@ -93,18 +89,20 @@ final class ClockStore {
         return clocks.dropFirst().allSatisfy { $0.displayFormatPreset == first } ? first : nil
     }
 
-    func moveUp(id: UUID) {
-        guard let index = clocks.firstIndex(where: { $0.id == id }), index > 0 else { return }
-        clocks.swapAt(index, index - 1)
-        changed()
-    }
-
-    func moveDown(id: UUID) {
+    func move(id: UUID, relativeTo targetID: UUID, insertAfter: Bool) {
         guard
-            let index = clocks.firstIndex(where: { $0.id == id }),
-            index < clocks.count - 1
+            id != targetID,
+            let sourceIndex = clocks.firstIndex(where: { $0.id == id })
         else { return }
-        clocks.swapAt(index, index + 1)
+
+        let movingClock = clocks.remove(at: sourceIndex)
+        guard let targetIndex = clocks.firstIndex(where: { $0.id == targetID }) else {
+            clocks.insert(movingClock, at: sourceIndex)
+            return
+        }
+
+        let insertionIndex = insertAfter ? targetIndex + 1 : targetIndex
+        clocks.insert(movingClock, at: min(insertionIndex, clocks.count))
         changed()
     }
 
@@ -113,17 +111,60 @@ final class ClockStore {
     }
 
     private let defaults: UserDefaults
-    private let languageStore: LanguageStore
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.ZoneletApp",
+        category: "ClockStore"
+    )
 
-    private func migrateDisplayFormatsIfNeeded() {
-        var didChange = false
+    private static func defaultClock(displayFormat: DisplayFormatPreset) -> ZoneClock {
+        ZoneClock(timeZoneIdentifier: "UTC", displayFormat: displayFormat)
+    }
 
-        for index in clocks.indices where clocks[index].displayFormatPattern == nil {
-            clocks[index].displayFormatPattern = defaultDisplayFormat.pattern
-            didChange = true
+    private static func containsLegacyLabels(in data: Data) -> Bool {
+        guard let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return false
+        }
+        return objects.contains { $0["label"] != nil }
+    }
+
+    private func normalize(_ decodedClocks: [ZoneClock]) -> (
+        clocks: [ZoneClock],
+        didRepair: Bool
+    ) {
+        var didRepair = false
+        let knownPatterns = Set(DisplayFormatPreset.allCases.map(\.pattern))
+        var normalizedClocks: [ZoneClock] = []
+        var seenClockIDs: Set<UUID> = []
+        var seenTimeZones: Set<String> = []
+
+        for var clock in decodedClocks {
+            guard TimeZone(identifier: clock.timeZoneIdentifier) != nil else {
+                didRepair = true
+                continue
+            }
+            guard
+                seenClockIDs.insert(clock.id).inserted,
+                seenTimeZones.insert(clock.timeZoneIdentifier).inserted
+            else {
+                didRepair = true
+                continue
+            }
+            if !knownPatterns.contains(clock.displayFormatPattern ?? "") {
+                clock.displayFormatPattern = defaultDisplayFormat.pattern
+                didRepair = true
+            }
+            normalizedClocks.append(clock)
         }
 
-        if didChange { persist() }
+        if !decodedClocks.isEmpty, normalizedClocks.isEmpty {
+            normalizedClocks = [Self.defaultClock(displayFormat: defaultDisplayFormat)]
+        }
+        return (normalizedClocks, didRepair)
+    }
+
+    private func backUpAndReportRecovery(_ data: Data) {
+        defaults.set(data, forKey: Keys.corruptClocksBackup)
+        recoveredConfiguration = true
     }
 
     private func changed() {

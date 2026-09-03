@@ -1,19 +1,24 @@
 import AppKit
 import OSLog
+import SwiftUI
 
 @MainActor
-final class StatusBarController: NSObject {
+final class StatusBarController: NSObject, NSMenuDelegate {
     init(
         store: ClockStore,
         languageStore: LanguageStore,
         openSettings: @escaping () -> Void,
+        updatesAvailable: Bool,
         checkForUpdates: @escaping () -> Void
     ) {
         self.store = store
         self.languageStore = languageStore
         self.openSettings = openSettings
+        self.updatesAvailable = updatesAvailable
         self.checkForUpdates = checkForUpdates
         super.init()
+
+        menu.delegate = self
 
         store.onChange = { [weak self] in
             self?.rebuildClocks()
@@ -21,91 +26,111 @@ final class StatusBarController: NSObject {
         languageStore.onChange = { [weak self] in
             self?.rebuildClocks()
         }
-        rebuildClocks()
-        startTimer()
+        // On macOS 26 the Control Center status-item host may still be
+        // reconnecting while applicationDidFinishLaunching is running,
+        // especially with more than one display. Creating the item on the
+        // next settled main-loop turn avoids producing a visible-but-unhosted
+        // NSStatusItem scene.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.rebuildClocks()
+        }
     }
 
     private let store: ClockStore
     private let languageStore: LanguageStore
     private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.Zonelet",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.ZoneletApp",
         category: "MenuBar"
     )
     private let openSettings: () -> Void
+    private let updatesAvailable: Bool
     private let checkForUpdates: () -> Void
+    private let menu = NSMenu()
     private var statusItem: NSStatusItem?
     private var timer: Timer?
+    private var hasGentleUpdateReminder = false
 
     private func rebuildClocks() {
         if statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            item.autosaveName = "Zonelet.MainClock"
+            // A stable autosave name keeps macOS from creating a new hidden
+            // Control Center entry whenever the app path or build changes.
+            item.autosaveName = "com.hjingsuper.ZoneletApp.primary-status-item"
             item.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             item.button?.image = nil
             item.button?.imagePosition = .noImage
+            item.menu = menu
+            item.isVisible = true
             statusItem = item
-            logger.notice("Created status item with stable autosave name")
+            logger.notice("Created status item with a stable persisted identity")
         }
 
-        updateStatusItem()
+        updateStatusItem(shouldRebuildMenu: true)
+        scheduleTimer()
     }
 
     private func updateTimes() {
-        updateStatusItem(at: .now)
+        updateStatusItem(at: .now, shouldRebuildMenu: false)
     }
 
-    private func updateStatusItem(at date: Date = .now) {
+    private func updateStatusItem(at date: Date = .now, shouldRebuildMenu: Bool) {
         guard let statusItem else { return }
         let visibleClocks = store.clocks.filter(\.isVisible)
-        statusItem.button?.title = ClockPresentation.statusTitle(
+        let title = ClockPresentation.statusTitle(
             for: visibleClocks,
             at: date,
-            language: languageStore.language
+            language: languageStore.language,
+            maxLength: hasGentleUpdateReminder ? 46 : 48
         )
+        statusItem.button?.title = hasGentleUpdateReminder ? "\(title) •" : title
         statusItem.button?.toolTip = visibleClocks.isEmpty
             ? "Zonelet"
-            : visibleClocks.map(\.timeZoneIdentifier).joined(separator: " · ")
-        statusItem.menu = makeMenu(for: visibleClocks, at: date)
+            : visibleClocks
+                .map {
+                    TimeZoneCatalog.cityName(
+                        for: $0.timeZoneIdentifier,
+                        language: languageStore.language
+                    )
+                }
+                .joined(separator: " · ")
+        if shouldRebuildMenu {
+            rebuildMenu(for: visibleClocks, at: date)
+        }
         statusItem.isVisible = true
-        logger.debug(
-            "Updated status item: visible=\(statusItem.isVisible), clocks=\(visibleClocks.count), title=\(statusItem.button?.title ?? "", privacy: .public)"
-        )
+        if shouldRebuildMenu {
+            logger.debug(
+                "Updated status item: visible=\(statusItem.isVisible), clocks=\(visibleClocks.count), title=\(statusItem.button?.title ?? "", privacy: .public)"
+            )
+        }
     }
 
-    private func makeMenu(for clocks: [ZoneClock], at date: Date = .now) -> NSMenu {
-        let menu = NSMenu()
+    private func rebuildMenu(for clocks: [ZoneClock], at date: Date = .now) {
+        menu.removeAllItems()
         if clocks.isEmpty {
             let heading = NSMenuItem(title: "Zonelet", action: nil, keyEquivalent: "")
             heading.isEnabled = false
             menu.addItem(heading)
         } else {
+            menu.addItem(
+                viewMenuItem(
+                    rootView: StatusClockMenuHeaderView(languageStore: languageStore),
+                    height: 24
+                )
+            )
+            menu.addItem(.separator())
+
             for (index, clock) in clocks.enumerated() {
-                let time = ClockPresentation.timeString(
-                    at: date,
-                    in: clock.timeZone,
-                    format: clock.effectiveDisplayFormat
+                menu.addItem(
+                    viewMenuItem(
+                        rootView: StatusClockMenuRowView(
+                            clock: clock,
+                            date: date,
+                            languageStore: languageStore,
+                            showsDivider: index < clocks.count - 1
+                        ),
+                        height: 34
+                    )
                 )
-                let heading = NSMenuItem(
-                    title: "\(clock.label)  \(time) · \(TimeZoneCatalog.gmtOffset(for: clock.timeZone, at: date))",
-                    action: nil,
-                    keyEquivalent: ""
-                )
-                heading.isEnabled = false
-                menu.addItem(heading)
-
-                let hide = NSMenuItem(
-                    title: languageStore[.hideFromMenuBar],
-                    action: #selector(hideClock(_:)),
-                    keyEquivalent: ""
-                )
-                hide.target = self
-                hide.representedObject = clock.id.uuidString
-                hide.indentationLevel = 1
-                menu.addItem(hide)
-
-                if index < clocks.count - 1 {
-                    menu.addItem(.separator())
-                }
             }
         }
 
@@ -115,11 +140,14 @@ final class StatusBarController: NSObject {
         menu.addItem(settings)
 
         let updates = NSMenuItem(
-            title: languageStore[.checkForUpdates],
+            title: languageStore[
+                hasGentleUpdateReminder ? .updateAvailable : .checkForUpdates
+            ],
             action: #selector(checkForUpdatesNow),
             keyEquivalent: ""
         )
         updates.target = self
+        updates.isEnabled = updatesAvailable
         menu.addItem(updates)
 
         let source = NSMenuItem(title: languageStore[.sourceOnGitHub], action: #selector(openSource), keyEquivalent: "")
@@ -129,23 +157,44 @@ final class StatusBarController: NSObject {
         let quitItem = NSMenuItem(title: languageStore[.quitApp], action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
-        return menu
     }
 
-    private func startTimer() {
+    private func scheduleTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(
-            timeInterval: 20,
+        timer = nil
+
+        let visibleClocks = store.clocks.filter(\.isVisible)
+        guard !visibleClocks.isEmpty else { return }
+
+        let interval = ClockRefreshPolicy.interval(for: visibleClocks)
+        let now = Date()
+        let nextBoundary = ClockRefreshPolicy.nextFireDate(after: now, interval: interval)
+        let newTimer = Timer(
+            fireAt: nextBoundary,
+            interval: interval,
             target: self,
             selector: #selector(timerDidFire),
             userInfo: nil,
             repeats: true
         )
-        timer?.tolerance = 2
+        newTimer.tolerance = interval == 1 ? 0.05 : 0.5
+        RunLoop.main.add(newTimer, forMode: .common)
+        timer = newTimer
     }
 
     @objc private func timerDidFire() {
         updateTimes()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        logger.debug("Status menu will open")
+        rebuildMenu(for: store.clocks.filter(\.isVisible), at: .now)
+    }
+
+    func setGentleUpdateReminderVisible(_ isVisible: Bool) {
+        guard hasGentleUpdateReminder != isVisible else { return }
+        hasGentleUpdateReminder = isVisible
+        updateStatusItem(shouldRebuildMenu: true)
     }
 
     @objc private func openZonelet() {
@@ -165,12 +214,17 @@ final class StatusBarController: NSObject {
         NSWorkspace.shared.open(url)
     }
 
-    @objc private func hideClock(_ sender: NSMenuItem) {
-        guard
-            let rawID = sender.representedObject as? String,
-            let id = UUID(uuidString: rawID)
-        else { return }
-        store.setVisible(id: id, false)
+    private func viewMenuItem<Content: View>(rootView: Content, height: CGFloat) -> NSMenuItem {
+        let item = NSMenuItem()
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: StatusClockMenuLayout.width,
+            height: height
+        )
+        item.view = hostingView
+        return item
     }
 
     deinit {

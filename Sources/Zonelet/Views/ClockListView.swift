@@ -24,70 +24,129 @@ struct ClockListView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(Array(store.clocks.enumerated()), id: \.element.id) { index, clock in
-                        ClockRowView(
-                            clock: clock,
-                            index: index,
-                            count: store.clocks.count,
-                            store: store,
-                            languageStore: languageStore
-                        )
-                    }
-                }
-                .listStyle(.inset)
+                clockTable
             }
 
             Divider()
             settingsFooter
         }
-        .frame(minWidth: 560, idealWidth: 620, minHeight: 460, idealHeight: 560)
+        .frame(minWidth: 980, idealWidth: 1040, minHeight: 470, idealHeight: 560)
         .background(.regularMaterial)
         .onAppear { launchAtLoginManager.retryRegistration() }
         .sheet(isPresented: $showingAddZone) {
-            AddZoneView(
-                store: store,
-                languageStore: languageStore
-            )
+            AddZoneView(store: store, languageStore: languageStore)
         }
     }
 
+    private var clockTable: some View {
+        VStack(spacing: 0) {
+            tableHeader
+            Divider()
+
+            ScrollView {
+                TimelineView(
+                    .periodic(from: clockRefreshStart, by: clockRefreshInterval)
+                ) { context in
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.clocks) { clock in
+                            ClockRowView(
+                                clock: clock,
+                                date: context.date,
+                                store: store,
+                                languageStore: languageStore
+                            )
+
+                            if clock.id != store.clocks.last?.id {
+                                Divider()
+                                    .padding(.horizontal, 18)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var clockRefreshInterval: TimeInterval {
+        ClockRefreshPolicy.interval(for: store.clocks)
+    }
+
+    private var clockRefreshStart: Date {
+        ClockRefreshPolicy.alignedStart(interval: clockRefreshInterval)
+    }
+
+    private var tableHeader: some View {
+        HStack(spacing: ClockTableLayout.spacing) {
+            Color.clear
+                .frame(width: ClockTableLayout.dragHandle, height: 1)
+
+            Text(languageStore[.locationColumn])
+                .frame(width: ClockTableLayout.location, alignment: .leading)
+
+            Text(languageStore[.timeColumn])
+                .frame(width: ClockTableLayout.time, alignment: .leading)
+
+            Text(languageStore[.localColumn])
+                .frame(width: ClockTableLayout.offset, alignment: .leading)
+
+            Text(languageStore[.utcColumn])
+                .frame(width: ClockTableLayout.offset, alignment: .leading)
+
+            uniformFormatMenu
+                .frame(width: ClockTableLayout.format, alignment: .leading)
+
+            Text(languageStore[.menuDisplayColumn])
+                .frame(width: ClockTableLayout.menuVisibility, alignment: .center)
+
+            Color.clear
+                .frame(width: ClockTableLayout.actions, height: 1)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+    }
+
+    private var uniformFormatMenu: some View {
+        Menu {
+            ForEach(DisplayFormatPreset.allCases) { preset in
+                Button {
+                    store.setDisplayFormatForAll(preset)
+                } label: {
+                    if store.uniformDisplayFormat == preset {
+                        Label(formatOptionLabel(preset), systemImage: "checkmark")
+                    } else {
+                        Text(formatOptionLabel(preset))
+                    }
+                }
+            }
+        } label: {
+            Text(languageStore[.formatColumn])
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(languageStore[.uniformFormat])
+    }
+
     private func formatOptionLabel(_ preset: DisplayFormatPreset) -> String {
-        let preview = ClockPresentation.timeString(in: .current, format: preset.pattern)
+        let preview = ClockPresentation.timeString(
+            in: .current,
+            locale: languageStore.language.locale,
+            format: preset.pattern
+        )
         return "\(preset.title(language: languageStore.language)) · \(preview)"
     }
 
     private var settingsFooter: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 7) {
-                Image(systemName: "calendar.badge.clock")
-                Text(languageStore[.uniformFormat])
-                    .foregroundStyle(.primary)
-                Spacer()
-                Menu {
-                    ForEach(DisplayFormatPreset.allCases) { preset in
-                        Button(formatOptionLabel(preset)) {
-                            store.setDisplayFormatForAll(preset)
-                        }
-                    }
-                } label: {
-                    Text(
-                        store.uniformDisplayFormat?.title(language: languageStore.language)
-                            ?? languageStore[.mixedFormats]
-                    )
-                    .frame(width: 140, alignment: .trailing)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+            if store.recoveredConfiguration {
+                Label(languageStore[.configurationRecovered], systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
 
-            Text(languageStore[.formatDescription])
-                .font(.caption2)
-                .padding(.leading, 23)
-
-            Divider()
-
-            HStack(alignment: .top, spacing: 22) {
+            HStack(alignment: .center, spacing: 18) {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(
                         languageStore[.launchAtLogin],
@@ -114,19 +173,24 @@ struct ClockListView: View {
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 16)
 
-                VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 8) {
                     Button(languageStore[.checkForUpdates]) {
                         updateManager.checkForUpdates()
                     }
-                    Text(languageStore[.automaticUpdatesDescription])
-                        .font(.caption2)
+                    .disabled(!updateManager.isAvailable)
+
+                    Text("v\(appVersion)")
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-            }
 
-            Divider()
+                Text(languageStore[.automaticUpdatesDescription])
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             Label {
                 Text(languageStore[.disclaimer])
@@ -141,8 +205,6 @@ struct ClockListView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
     }
@@ -160,26 +222,23 @@ struct ClockListView: View {
         }
     }
 
+    private var appVersion: String {
+        let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "—"
+        guard let build = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleVersion"
+        ) as? String else { return version }
+        return "\(version) (\(build))"
+    }
+
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "globe.americas.fill")
-                .font(.title2)
+            Text("Zonelet")
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(.tint)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Zonelet")
-                    .font(.title2.weight(.semibold))
-                Text(languageStore[.appSubtitle])
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Spacer()
-
-            Link(destination: URL(string: "https://github.com/hjingsuper/Zonelet")!) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-            }
-            .help(languageStore[.sourceOnGitHub])
 
             Menu {
                 Button {
@@ -191,6 +250,7 @@ struct ClockListView: View {
                         Text(languageStore[.chinese])
                     }
                 }
+
                 Button {
                     languageStore.setLanguage(.english)
                 } label: {
@@ -201,13 +261,19 @@ struct ClockListView: View {
                     }
                 }
             } label: {
-                Image(systemName: "character.bubble")
-                    .frame(width: 18)
+                Label(currentLanguageTitle, systemImage: "character.bubble")
             }
-            .menuStyle(.borderlessButton)
-            .controlSize(.small)
+            .controlSize(.regular)
             .fixedSize()
             .help(languageStore[.language])
+
+            if let sourceURL = URL(string: "https://github.com/hjingsuper/Zonelet") {
+                Link(destination: sourceURL) {
+                    Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .buttonStyle(.bordered)
+                .help(languageStore[.sourceOnGitHub])
+            }
 
             Button {
                 showingAddZone = true
@@ -216,6 +282,16 @@ struct ClockListView: View {
             }
             .keyboardShortcut("n", modifiers: .command)
         }
-        .padding(18)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+    }
+
+    private var currentLanguageTitle: String {
+        switch languageStore.language {
+        case .simplifiedChinese:
+            languageStore[.chinese]
+        case .english:
+            languageStore[.english]
+        }
     }
 }

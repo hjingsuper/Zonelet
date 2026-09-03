@@ -16,7 +16,7 @@ if [[ -z "$DMGBUILD_BIN" ]]; then
 fi
 
 if [[ -z "$DMGBUILD_BIN" || ! -x "$DMGBUILD_BIN" ]]; then
-  echo "dmgbuild is required. Install it with Python 3.10+: python3 -m pip install dmgbuild==1.6.7" >&2
+  echo "dmgbuild is required. Install it with Python 3.10+: python3 -m pip install dmgbuild==1.6.5" >&2
   exit 1
 fi
 

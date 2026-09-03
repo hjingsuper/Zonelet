@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.Zonelet",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.hjingsuper.ZoneletApp",
         category: "Lifecycle"
     )
     private var store: ClockStore?
@@ -17,25 +17,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("Application finished launching")
-        NSApp.setActivationPolicy(.accessory)
 
-        migratePreferencesFromLegacyBundleIdentifierIfNeeded()
+        migratePreferencesFromLegacyBundleIdentifiersIfNeeded()
 
         let languageStore = LanguageStore()
-        let store = ClockStore(languageStore: languageStore)
+        let store = ClockStore()
         let launchAtLoginManager = LaunchAtLoginManager()
         let updateManager = UpdateManager()
         self.languageStore = languageStore
         self.store = store
         self.launchAtLoginManager = launchAtLoginManager
         self.updateManager = updateManager
-        statusBarController = StatusBarController(
+        let statusBarController = StatusBarController(
             store: store,
-            languageStore: languageStore
-        ) { [weak self] in
-            self?.showWindow()
-        } checkForUpdates: { [weak updateManager] in
-            updateManager?.checkForUpdates()
+            languageStore: languageStore,
+            openSettings: { [weak self] in
+                self?.showWindow()
+            },
+            updatesAvailable: updateManager.isAvailable,
+            checkForUpdates: { [weak updateManager] in
+                updateManager?.checkForUpdates()
+            }
+        )
+        self.statusBarController = statusBarController
+        updateManager.onGentleUpdateAvailabilityChanged = { [weak statusBarController] isAvailable in
+            statusBarController?.setGentleUpdateReminderVisible(isAvailable)
         }
         logger.notice("Application services are ready")
         updateManager.start()
@@ -47,16 +53,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
     }
 
-    private func migratePreferencesFromLegacyBundleIdentifierIfNeeded() {
+    private func migratePreferencesFromLegacyBundleIdentifiersIfNeeded() {
         let defaults = UserDefaults.standard
-        let migrationKey = "zonelet.did-migrate-com.local.Zonelet"
+        let migrationKey = "zonelet.did-migrate-preferences-v3"
         guard !defaults.bool(forKey: migrationKey) else { return }
 
-        if let legacy = UserDefaults.standard.persistentDomain(forName: "com.local.Zonelet") {
-            for (key, value) in legacy where defaults.object(forKey: key) == nil {
-                defaults.set(value, forKey: key)
+        let currentIdentifier = Bundle.main.bundleIdentifier
+        let legacyIdentifiers = [
+            "com.hjingsuper.Zonelet",
+            "com.local.Zonelet",
+        ]
+        let migratableKeys: Set<String> = [
+            "zonelet.clocks",
+            "zonelet.display-format",
+            "zonelet.language",
+            "zonelet.launch-at-login",
+        ]
+
+        for identifier in legacyIdentifiers where identifier != currentIdentifier {
+            if let legacy = defaults.persistentDomain(forName: identifier) {
+                for (key, value) in legacy
+                    where migratableKeys.contains(key) && defaults.object(forKey: key) == nil
+                {
+                    defaults.set(value, forKey: key)
+                }
+                logger.notice("Migrated preferences from \(identifier, privacy: .public)")
             }
-            logger.notice("Migrated preferences from the legacy bundle identifier")
         }
 
         defaults.set(true, forKey: migrationKey)
@@ -93,8 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: hostingController)
             window.title = "Zonelet"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 620, height: 560))
-            window.minSize = NSSize(width: 560, height: 460)
+            window.setContentSize(NSSize(width: 1040, height: 560))
+            window.contentMinSize = NSSize(width: 980, height: 470)
             window.isReleasedWhenClosed = false
             window.center()
             windowController = NSWindowController(window: window)
@@ -107,12 +129,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct ZoneletApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+@MainActor
+enum ZoneletApp {
+    static func main() {
+        let application = NSApplication.shared
+        let appDelegate = AppDelegate()
+        application.delegate = appDelegate
+        application.run()
 
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
+        // NSApplication's delegate is not an ownership boundary. Keeping the
+        // local reference alive for the duration of run() makes that lifetime
+        // explicit without introducing global application state.
+        _ = appDelegate
     }
 }
