@@ -121,19 +121,19 @@ struct CustomDisplayFormat: Codable, Equatable {
 
     var pattern: String {
         var components: [String] = []
+        var dateParts: [String] = []
 
-        if dateStyle != .hidden {
-            var dateParts: [String] = []
-            switch yearStyle {
-            case .hidden: break
-            case .short: dateParts.append("yy")
-            case .full: dateParts.append("yyyy")
-            }
-            switch dateStyle {
-            case .hidden: break
-            case .compact: dateParts.append(contentsOf: ["M", "d"])
-            case .padded: dateParts.append(contentsOf: ["MM", "dd"])
-            }
+        switch yearStyle {
+        case .hidden: break
+        case .short: dateParts.append("yy")
+        case .full: dateParts.append("yyyy")
+        }
+        switch dateStyle {
+        case .hidden: break
+        case .compact: dateParts.append(contentsOf: ["M", "d"])
+        case .padded: dateParts.append(contentsOf: ["MM", "dd"])
+        }
+        if !dateParts.isEmpty {
             components.append(dateParts.joined(separator: dateSeparator.rawValue))
         }
 

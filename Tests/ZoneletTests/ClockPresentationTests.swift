@@ -162,6 +162,44 @@ final class ClockPresentationTests: XCTestCase {
         XCTAssertEqual(CustomDisplayFormat.compactShort.pattern, "yy-M-d H:m EEEEE")
     }
 
+    func testCustomFormatCanShowYearWithoutMonthAndDay() throws {
+        let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-06T21:03:00Z"))
+        let configuration = CustomDisplayFormat(
+            yearStyle: .full,
+            dateStyle: .hidden,
+            dateSeparator: .slash,
+            hourCycle: .twentyFour,
+            digitStyle: .compact,
+            showsSeconds: false,
+            weekdayStyle: .hidden
+        )
+
+        XCTAssertEqual(configuration.pattern, "yyyy H:m")
+        XCTAssertEqual(
+            ClockPresentation.timeString(
+                at: date,
+                in: .gmt,
+                locale: Locale(identifier: "zh-Hans"),
+                format: configuration.pattern
+            ),
+            "2026 21:3"
+        )
+    }
+
+    func testCustomDateOptionsRemainIndependent() {
+        var configuration = CustomDisplayFormat.starting(from: .time24)
+
+        configuration.yearStyle = .short
+        XCTAssertEqual(configuration.pattern, "yy HH:mm")
+
+        configuration.dateSeparator = .dot
+        configuration.dateStyle = .compact
+        XCTAssertEqual(configuration.pattern, "yy.M.d HH:mm")
+
+        configuration.yearStyle = .hidden
+        XCTAssertEqual(configuration.pattern, "M.d HH:mm")
+    }
+
     @MainActor
     func testDisplayFormatPersistence() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "ZoneletTests.Format.\(UUID())"))

@@ -107,7 +107,6 @@ struct CustomDisplayFormatEditor: View {
                         Text(style.title(language: languageStore.language)).tag(style)
                     }
                 }
-                .disabled(configuration.dateStyle == .hidden)
 
                 Picker(languageStore[.dateDigits], selection: $configuration.dateStyle) {
                     ForEach(CustomDisplayFormat.DateStyle.allCases) { style in
@@ -120,7 +119,6 @@ struct CustomDisplayFormatEditor: View {
                         Text(separator.rawValue).tag(separator)
                     }
                 }
-                .disabled(configuration.dateStyle == .hidden)
 
                 Picker(languageStore[.hourCycle], selection: $configuration.hourCycle) {
                     ForEach(CustomDisplayFormat.HourCycle.allCases) { cycle in

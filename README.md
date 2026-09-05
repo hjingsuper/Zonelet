@@ -44,7 +44,7 @@ Zonelet 是一款专注于菜单栏地区时间显示的 macOS 小工具。它�
 - 每个地区可单独控制是否出现在顶部菜单栏，关闭后仍保留在下拉列表中
 - 默认仅添加 UTC，其他地区由用户自行选择
 - 显示地区相对本机与 UTC 的精简时差
-- 每个地区可独立选择常用预设，或可视化组合年份、月日、分隔符、补零、星期与秒钟
+- 每个地区可独立选择常用预设，或不受联动限制地组合年份、月日、分隔符、补零、星期与秒钟
 - 支持 `26-9-7 5:3 一` 这样的极简短日期格式，并实时预览菜单栏长度
 - 支持统一设置全部地区格式，之后仍可逐项调整
 - 拖动手柄自由排序，悬停时显示四向移动光标
@@ -102,7 +102,7 @@ Zonelet is a small, focused macOS menu bar app for checking time across regions 
 - Choose which locations appear in the menu bar while keeping every location in the pop-up list
 - Start with UTC only and add the locations you need
 - See compact offsets from both local time and UTC
-- Choose a preset or visually compose date, padding, separators, weekday, and seconds for every location
+- Choose a preset or independently compose year, date, padding, separators, weekday, and seconds for every location
 - Use compact formats such as `26-9-7 5:3 M`, with a live menu bar length preview
 - Apply one format globally, then fine-tune individual rows
 - Drag to reorder with a clear four-way move cursor
