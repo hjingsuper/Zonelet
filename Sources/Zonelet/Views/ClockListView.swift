@@ -109,6 +109,7 @@ struct ClockListView: View {
 
             Text(languageStore[.menuDisplayColumn])
                 .frame(width: ClockTableLayout.menuVisibility, alignment: .center)
+                .help(languageStore[.menuBarOnlyHint])
 
             Color.clear
                 .frame(width: ClockTableLayout.actions, height: 1)

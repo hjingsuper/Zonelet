@@ -45,6 +45,7 @@ enum L10nKey {
     case locationColumn
     case manageClocks
     case menuDisplayColumn
+    case menuBarOnlyHint
     case noClocks
     case noClocksDescription
     case quitApp
@@ -122,7 +123,8 @@ final class LanguageStore {
         case (.simplifiedChinese, .localColumn): "本机"
         case (.simplifiedChinese, .locationColumn): "地区"
         case (.simplifiedChinese, .manageClocks): "管理地区时间…"
-        case (.simplifiedChinese, .menuDisplayColumn): "菜单显示"
+        case (.simplifiedChinese, .menuDisplayColumn): "顶部显示"
+        case (.simplifiedChinese, .menuBarOnlyHint): "仅控制顶部菜单栏文字，不影响下拉列表。"
         case (.simplifiedChinese, .noClocks): "暂无地区时间"
         case (.simplifiedChinese, .noClocksDescription): "添加一个城市或地区即可开始。"
         case (.simplifiedChinese, .quitApp): "退出 Zonelet"
@@ -172,6 +174,7 @@ final class LanguageStore {
         case (.english, .locationColumn): "Location"
         case (.english, .manageClocks): "Manage Locations…"
         case (.english, .menuDisplayColumn): "Menu Bar"
+        case (.english, .menuBarOnlyHint): "Only controls the menu bar title; the location stays in the pop-up list."
         case (.english, .noClocks): "No Locations"
         case (.english, .noClocksDescription): "Add a city or location to get started."
         case (.english, .quitApp): "Quit Zonelet"

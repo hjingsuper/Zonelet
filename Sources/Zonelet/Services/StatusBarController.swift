@@ -57,8 +57,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             // Control Center entry whenever the app path or build changes.
             item.autosaveName = "com.hjingsuper.ZoneletApp.primary-status-item"
             item.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-            item.button?.image = nil
-            item.button?.imagePosition = .noImage
             item.menu = menu
             item.isVisible = true
             statusItem = item
@@ -75,17 +73,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func updateStatusItem(at date: Date = .now, shouldRebuildMenu: Bool) {
         guard let statusItem else { return }
-        let visibleClocks = store.clocks.filter(\.isVisible)
+        let visibleClocks = ClockDisplayPolicy.menuBarClocks(from: store.clocks)
+        let popupClocks = ClockDisplayPolicy.popupClocks(from: store.clocks)
         let title = ClockPresentation.statusTitle(
             for: visibleClocks,
             at: date,
             language: languageStore.language,
             maxLength: hasGentleUpdateReminder ? 46 : 48
         )
-        statusItem.button?.title = hasGentleUpdateReminder ? "\(title) •" : title
-        statusItem.button?.toolTip = visibleClocks.isEmpty
+        configureStatusButton(for: visibleClocks, title: title)
+        statusItem.button?.toolTip = popupClocks.isEmpty
             ? "Zonelet"
-            : visibleClocks
+            : popupClocks
                 .map {
                     TimeZoneCatalog.cityName(
                         for: $0.timeZoneIdentifier,
@@ -94,13 +93,32 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 }
                 .joined(separator: " · ")
         if shouldRebuildMenu {
-            rebuildMenu(for: visibleClocks, at: date)
+            rebuildMenu(for: popupClocks, at: date)
         }
         statusItem.isVisible = true
         if shouldRebuildMenu {
             logger.debug(
                 "Updated status item: visible=\(statusItem.isVisible), clocks=\(visibleClocks.count), title=\(statusItem.button?.title ?? "", privacy: .public)"
             )
+        }
+    }
+
+    private func configureStatusButton(for visibleClocks: [ZoneClock], title: String) {
+        guard let button = statusItem?.button else { return }
+
+        if visibleClocks.isEmpty {
+            let image = NSImage(
+                systemSymbolName: "globe",
+                accessibilityDescription: "Zonelet"
+            )
+            image?.isTemplate = true
+            button.image = image
+            button.imagePosition = hasGentleUpdateReminder ? .imageLeading : .imageOnly
+            button.title = hasGentleUpdateReminder ? "•" : ""
+        } else {
+            button.image = nil
+            button.imagePosition = .noImage
+            button.title = hasGentleUpdateReminder ? "\(title) •" : title
         }
     }
 
@@ -163,7 +181,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         timer?.invalidate()
         timer = nil
 
-        let visibleClocks = store.clocks.filter(\.isVisible)
+        let visibleClocks = ClockDisplayPolicy.menuBarClocks(from: store.clocks)
         guard !visibleClocks.isEmpty else { return }
 
         let interval = ClockRefreshPolicy.interval(for: visibleClocks)
@@ -188,7 +206,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         logger.debug("Status menu will open")
-        rebuildMenu(for: store.clocks.filter(\.isVisible), at: .now)
+        rebuildMenu(for: ClockDisplayPolicy.popupClocks(from: store.clocks), at: .now)
     }
 
     func setGentleUpdateReminderVisible(_ isVisible: Bool) {

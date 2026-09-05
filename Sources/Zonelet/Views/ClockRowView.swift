@@ -151,6 +151,7 @@ struct ClockRowView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .frame(width: ClockTableLayout.menuVisibility, alignment: .center)
+            .help(languageStore[.menuBarOnlyHint])
 
             Menu {
                 Button(languageStore[.remove], systemImage: "trash", role: .destructive) {

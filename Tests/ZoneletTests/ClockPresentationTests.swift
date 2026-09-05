@@ -103,6 +103,25 @@ final class ClockPresentationTests: XCTestCase {
         XCTAssertFalse(title.contains("-1"))
     }
 
+    func testMenuBarVisibilityDoesNotRemoveClocksFromPopup() {
+        let visible = ZoneClock(timeZoneIdentifier: "UTC", isVisible: true)
+        let hidden = ZoneClock(timeZoneIdentifier: "America/Lima", isVisible: false)
+        let clocks = [visible, hidden]
+
+        XCTAssertEqual(ClockDisplayPolicy.menuBarClocks(from: clocks), [visible])
+        XCTAssertEqual(ClockDisplayPolicy.popupClocks(from: clocks), clocks)
+    }
+
+    func testAllHiddenClocksRemainAvailableToPopup() {
+        let clocks = [
+            ZoneClock(timeZoneIdentifier: "UTC", isVisible: false),
+            ZoneClock(timeZoneIdentifier: "America/Lima", isVisible: false)
+        ]
+
+        XCTAssertTrue(ClockDisplayPolicy.menuBarClocks(from: clocks).isEmpty)
+        XCTAssertEqual(ClockDisplayPolicy.popupClocks(from: clocks), clocks)
+    }
+
     func testCustomDateAndTimeFormat() throws {
         let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-02T08:05:00Z"))
         let value = ClockPresentation.timeString(
